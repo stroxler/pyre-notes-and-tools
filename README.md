@@ -25,3 +25,13 @@ to catch with just unit tests.
 Hence this project, where I'm intending to create some example
 python projects that I can use to see the results of end-to-end
 `pyre infer` runs.
+
+## How do I use it?
+
+You'll need to have a pyre client and binary (you can build
+these off of `facebook/pyre-check` following the instructions
+in `CONTRIBUTING.md`.
+
+Then just navigate into one of the project directories and
+run `pyre -n check` to see what `pyre check` does. You can
+similarly test other commands like `pyre infer`.
