@@ -1,0 +1,136 @@
+2021-11-01 06:41:10,103 [PID 789209] INFO Could not determine the number of Pyre workers from configuration. Auto-set the value to 20.
+2021-11-01 06:41:10,104 [PID 789209] INFO Writing arguments into /tmp/pyre_arguments_oj0ec24z.json...
+2021-11-01 06:41:10,105 [PID 789209] DEBUG Arguments:
+{
+  "source_paths": {
+    "kind": "simple",
+    "paths": [
+      "/home/stroxler/pyre-check-scratch-projects/project0"
+    ]
+  },
+  "search_paths": [
+    "/home/stroxler/pyre-check-scratch-projects/project0/../typeshed-stdlib-only/stdlib"
+  ],
+  "excludes": [],
+  "checked_directory_allowlist": [
+    "/home/stroxler/pyre-check-scratch-projects/project0"
+  ],
+  "checked_directory_blocklist": [],
+  "extensions": [],
+  "log_path": "/home/stroxler/pyre-check-scratch-projects/project0/.pyre",
+  "global_root": "/home/stroxler/pyre-check-scratch-projects/project0",
+  "debug": false,
+  "python_version": {
+    "major": 3,
+    "minor": 8,
+    "micro": 6
+  },
+  "shared_memory": {},
+  "parallel": true,
+  "number_of_workers": 20,
+  "additional_logging_sections": [],
+  "show_error_traces": false,
+  "strict": false
+}
+2021-11-01 06:41:10,181 [PID 789209] INFO Initializing shared memory [heap_size=8589934592, dep_table_pow=27, hash_table_pow=26]
+2021-11-01 06:41:10,205 [PID 789209] INFO Building module tracker...
+2021-11-01 06:41:10,212 [PID 789209] PERFORMANCE Module tracker built: 0.01s
+2021-11-01 06:41:10,213 [PID 789209] INFO Building type environment...
+2021-11-01 06:41:10,437 [PID 789209] INFO Parsing 476 stubs and sources...
+2021-11-01 06:41:11,302 [PID 789209] PERFORMANCE Sources parsed: 0.87s
+2021-11-01 06:41:12,246 [PID 789209] PERFORMANCE Full environment built: 2.04s
+2021-11-01 06:41:12,247 [PID 789209] INFO Checking 2 functions...
+2021-11-01 06:41:12,248 [PID 789209] INFO Processed 2 of 2 functions
+2021-11-01 06:41:12,248 [PID 789209] PERFORMANCE Check_TypeCheck: 0.00s
+2021-11-01 06:41:12,248 [PID 789209] MEMORY Shared memory size post-typecheck (size: 5)
+2021-11-01 06:41:12,248 [PID 789209] INFO Postprocessing 476 sources...
+2021-11-01 06:41:12,280 [PID 789209] INFO Postprocessed 12 of 476 sources
+2021-11-01 06:41:12,280 [PID 789209] INFO Postprocessed 24 of 476 sources
+2021-11-01 06:41:12,281 [PID 789209] INFO Postprocessed 36 of 476 sources
+2021-11-01 06:41:12,281 [PID 789209] INFO Postprocessed 48 of 476 sources
+2021-11-01 06:41:12,291 [PID 789209] INFO Postprocessed 60 of 476 sources
+2021-11-01 06:41:12,292 [PID 789209] INFO Postprocessed 72 of 476 sources
+2021-11-01 06:41:12,292 [PID 789209] INFO Postprocessed 84 of 476 sources
+2021-11-01 06:41:12,292 [PID 789209] INFO Postprocessed 96 of 476 sources
+2021-11-01 06:41:12,292 [PID 789209] INFO Postprocessed 108 of 476 sources
+2021-11-01 06:41:12,292 [PID 789209] INFO Postprocessed 120 of 476 sources
+2021-11-01 06:41:12,292 [PID 789209] INFO Postprocessed 132 of 476 sources
+2021-11-01 06:41:12,292 [PID 789209] INFO Postprocessed 144 of 476 sources
+2021-11-01 06:41:12,303 [PID 789209] INFO Postprocessed 156 of 476 sources
+2021-11-01 06:41:12,303 [PID 789209] INFO Postprocessed 168 of 476 sources
+2021-11-01 06:41:12,303 [PID 789209] INFO Postprocessed 180 of 476 sources
+2021-11-01 06:41:12,304 [PID 789209] INFO Postprocessed 192 of 476 sources
+2021-11-01 06:41:12,304 [PID 789209] INFO Postprocessed 204 of 476 sources
+2021-11-01 06:41:12,304 [PID 789209] INFO Postprocessed 216 of 476 sources
+2021-11-01 06:41:12,304 [PID 789209] INFO Postprocessed 228 of 476 sources
+2021-11-01 06:41:12,314 [PID 789209] INFO Postprocessed 240 of 476 sources
+2021-11-01 06:41:12,314 [PID 789209] INFO Postprocessed 252 of 476 sources
+2021-11-01 06:41:12,314 [PID 789209] INFO Postprocessed 264 of 476 sources
+2021-11-01 06:41:12,315 [PID 789209] INFO Postprocessed 276 of 476 sources
+2021-11-01 06:41:12,317 [PID 789209] INFO Postprocessed 288 of 476 sources
+2021-11-01 06:41:12,317 [PID 789209] INFO Postprocessed 300 of 476 sources
+2021-11-01 06:41:12,319 [PID 789209] INFO Postprocessed 312 of 476 sources
+2021-11-01 06:41:12,320 [PID 789209] INFO Postprocessed 324 of 476 sources
+2021-11-01 06:41:12,321 [PID 789209] INFO Postprocessed 336 of 476 sources
+2021-11-01 06:41:12,322 [PID 789209] INFO Postprocessed 348 of 476 sources
+2021-11-01 06:41:12,324 [PID 789209] INFO Postprocessed 360 of 476 sources
+2021-11-01 06:41:12,327 [PID 789209] INFO Postprocessed 372 of 476 sources
+2021-11-01 06:41:12,327 [PID 789209] INFO Postprocessed 384 of 476 sources
+2021-11-01 06:41:12,331 [PID 789209] INFO Postprocessed 396 of 476 sources
+2021-11-01 06:41:12,333 [PID 789209] INFO Postprocessed 408 of 476 sources
+2021-11-01 06:41:12,333 [PID 789209] INFO Postprocessed 420 of 476 sources
+2021-11-01 06:41:12,334 [PID 789209] INFO Postprocessed 432 of 476 sources
+2021-11-01 06:41:12,335 [PID 789209] INFO Postprocessed 444 of 476 sources
+2021-11-01 06:41:12,338 [PID 789209] INFO Postprocessed 456 of 476 sources
+2021-11-01 06:41:12,340 [PID 789209] INFO Postprocessed 464 of 476 sources
+2021-11-01 06:41:12,342 [PID 789209] INFO Postprocessed 476 of 476 sources
+2021-11-01 06:41:12,346 [PID 789209] PERFORMANCE Check: 2.15s
+2021-11-01 06:41:12,408 [PID 789209] SUCCESS No type errors found
+2021-11-01 06:41:40,634 [PID 791035] INFO Could not determine the number of Pyre workers from configuration. Auto-set the value to 20.
+2021-11-01 06:41:40,636 [PID 791035] INFO Writing arguments into /tmp/pyre_arguments_xxcd5u7e.json...
+2021-11-01 06:41:40,636 [PID 791035] DEBUG Arguments:
+{
+  "source_paths": {
+    "kind": "simple",
+    "paths": [
+      "/home/stroxler/pyre-check-scratch-projects/project0"
+    ]
+  },
+  "search_paths": [
+    "/home/stroxler/pyre-check-scratch-projects/project0/../typeshed-stdlib-only/stdlib"
+  ],
+  "excludes": [],
+  "checked_directory_allowlist": [
+    "/home/stroxler/pyre-check-scratch-projects/project0"
+  ],
+  "checked_directory_blocklist": [],
+  "extensions": [],
+  "log_path": "/home/stroxler/pyre-check-scratch-projects/project0/.pyre",
+  "global_root": "/home/stroxler/pyre-check-scratch-projects/project0",
+  "debug": false,
+  "python_version": {
+    "major": 3,
+    "minor": 8,
+    "micro": 6
+  },
+  "shared_memory": {},
+  "parallel": true,
+  "number_of_workers": 20,
+  "additional_logging_sections": [
+    "-progress"
+  ],
+  "show_error_traces": false,
+  "strict": false
+}
+2021-11-01 06:41:40,711 [PID 791035] INFO Initializing shared memory [heap_size=8589934592, dep_table_pow=27, hash_table_pow=26]
+2021-11-01 06:41:40,734 [PID 791035] INFO Building module tracker...
+2021-11-01 06:41:40,751 [PID 791035] PERFORMANCE Module tracker built: 0.02s
+2021-11-01 06:41:40,752 [PID 791035] INFO Building type environment...
+2021-11-01 06:41:40,975 [PID 791035] INFO Parsing 476 stubs and sources...
+2021-11-01 06:41:41,867 [PID 791035] PERFORMANCE Sources parsed: 0.89s
+2021-11-01 06:41:42,859 [PID 791035] PERFORMANCE Full environment built: 2.11s
+2021-11-01 06:41:42,861 [PID 791035] INFO Checking 2 functions...
+2021-11-01 06:41:42,861 [PID 791035] PERFORMANCE Check_TypeCheck: 0.00s
+2021-11-01 06:41:42,862 [PID 791035] MEMORY Shared memory size post-typecheck (size: 5)
+2021-11-01 06:41:42,960 [PID 791035] PERFORMANCE Check: 2.23s
+2021-11-01 06:41:43,019 [PID 791035] SUCCESS No type errors found
