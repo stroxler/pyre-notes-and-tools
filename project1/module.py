@@ -1,1 +1,2 @@
-s = "a string"
+def f():
+    return "a string"
