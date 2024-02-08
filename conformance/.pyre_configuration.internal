@@ -1,0 +1,7 @@
+{
+  "source_directories": ["./src"],
+  "python_version": "3.12.2",
+  "typeshed": "~/fbsource/fbcode/tools/pyre/stubs/typeshed/typeshed",
+  "unstable_client": "~/fbsource/tools/pyre/pyre_client",
+  "binary": "~/fbsource/fbcode/tools/pyre/source/_build/default/main.exe"
+}
