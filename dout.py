@@ -1,4 +1,6 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
+# (Use a python3 I'm certain isn't rosetta for now... if you use
+#  an i386 python3 in an arm mac you'll have problems!)
 """
 # dout: the dune ounit test runner.
 
