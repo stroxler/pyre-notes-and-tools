@@ -82,6 +82,35 @@ Look at `check_method_override`
 
 In general take a few tasks marked good-second-issue.
 
+Resources if I wanted to tackle the `__new__` bugs:
+   - docs on `__new__`: https://docs.python.org/3/reference/datamodel.html#basic-customization
+   - blogpost with a more consumable description: https://santoshk.dev/posts/2022/__init__-vs-__new__-and-when-to-use-them/
+   - couple of examples where mypy has arguably-bad semantics
+     - ex A: https://gist.github.com/mypy-play/b40fec12cb83d7683c6832320aecc4d8
+     - ex B: https://gist.github.com/mypy-play/46b45241159045b55d7dfd9d871280f1
+     - another bug report: https://github.com/python/mypy/issues/17251
+     - a narrower bug report about enums specifically:  https://github.com/python/mypy/issues/16806
+     - another bug report related to generics: https://github.com/python/mypy/issues/15935
+       gist: https://gist.github.com/mypy-play/8e3a4d537d6054de128e1ff4765c7a0c
+   - Shantanu described what's going on, a class is actually represented as a FunctionLike (basically
+     a Callable) representing its constructor, which is a kind of strange representation and is likely
+     at the heart of what's going on, because we actually extract the return value of this type to figure
+     out "what is" the type, and that's not a very good choice!
+
+The match issue might also be interesting:
+ - https://github.com/python/mypy/commit/3579c6149b74bee4717fb5fcac9e4351d36fe1b5
+
+### Particularly valuable stuff for Steven to read:
+
+Jukka has started working on 695:
+
+https://github.com/python/mypy/commit/5fb8d6262f2ade83234e46334eb3fb8a4bbaedc0
+https://github.com/python/mypy/commit/3b97e6e60b561b18ef23bfd98a4296b23f60a10a
+
+But also of course I could start reading *any* PR, and ideally commenting
+if I see anything.
+
+
 ## Typeshed notes (Alex)
 
 The most desirable place for stub packages is actually typeshed, ideally Pyre would
