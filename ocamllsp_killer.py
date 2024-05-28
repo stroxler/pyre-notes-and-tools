@@ -23,7 +23,6 @@ def count_ocamllsp() -> int:
         if " ocamllsp" in line:  # the space prevents us from counting ourself!
             time.sleep(0.25)
             count += 1
-    logger.info("Counted %d matching ps aux lines", count)
     return count
 
 
@@ -49,10 +48,8 @@ def run_check_and_kill_loop(
             # potentially sleep longer after a kill (if we kill too many times too fast,
             # eventually Visual Studio Code will turn off the extension; backing off a bit
             # helps).
-            logger.info("Sleeping %f seconds", sleep_interval_after_kill_s)
             time.sleep(sleep_interval_after_kill_s)
         else:
-            logger.info("Sleeping %f seconds", sleep_interval_s)
             time.sleep(sleep_interval_s)
 
 
