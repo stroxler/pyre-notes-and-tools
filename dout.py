@@ -56,34 +56,34 @@ def dune_env() -> typing.Mapping[str, str]:
     return env
 
 
-def get_exe_test_file(test_file: Path) -> Path:
-    return test_file.with_suffix(".exe")
+def get_exe_test_file(test_file_path: Path) -> Path:
+    return test_file_path.with_suffix(".exe")
 
 
-def dune_exec_command(test_file: Path) -> list[str]:
+def dune_exec_command(test_file_path: Path) -> list[str]:
     return [
-        "dune", "exec", str(get_exe_test_file(test_file)),
+        "dune", "exec", str(get_exe_test_file(test_file_path)),
     ]
 
 
-def dune_exec_subcommand(test_file: Path, subcommand: list[str]) -> list[str]:
+def dune_exec_subcommand(test_file_path: Path, subcommand: list[str]) -> list[str]:
     return [
-        *dune_exec_command(test_file),
+        *dune_exec_command(test_file_path),
         "--",
         *subcommand,
     ]
 
 
-def run_all_tests(test_file) -> None:
+def run_all_tests(test_file_path) -> None:
     subprocess.check_call(
-        dune_exec_command(test_file),
+        dune_exec_command(test_file_path),
         env=dune_env(),
     )
 
 
-def get_test_names(test_file) -> str:
+def get_test_names(test_file_path) -> str:
     output = subprocess.check_output(
-        dune_exec_subcommand(test_file, ["-list-test"]),
+        dune_exec_subcommand(test_file_path, ["-list-test"]),
         env=dune_env(),
         encoding="utf-8"
     )
@@ -101,8 +101,8 @@ def find_matching_test_names(
     ]
 
 
-def run_list_tests(test_file, test_case: str | None) -> None:
-    list_test_out = get_test_names(test_file)
+def run_list_tests(test_file_path: Path, test_case: str | None) -> None:
+    list_test_out = get_test_names(test_file_path)
     if test_case is None:
         print(list_test_out)
     else:
@@ -113,9 +113,9 @@ def run_list_tests(test_file, test_case: str | None) -> None:
             print(test_name)
 
 
-def run_test_case(test_file, test_case: str) -> None:
+def run_test_case(test_file_path: Path, test_case: str) -> None:
     matching_tests = find_matching_test_names(
-        get_test_names(test_file),
+        get_test_names(test_file_path),
         test_case,
     )
     if len(matching_tests) == 0:
@@ -127,30 +127,31 @@ def run_test_case(test_file, test_case: str) -> None:
         )
     matching_test = matching_tests[0]
     output = subprocess.check_call(
-        dune_exec_subcommand(test_file, ["-only-test", matching_test]),
+        dune_exec_subcommand(test_file_path, ["-only-test", matching_test]),
         env=dune_env(),
     )
 
 
 def main(
-    test_file: Path,
+    which_test: str,
     list_tests: bool,
     test_case: str | None,
 ) -> None:
+    test_file_path = Path(which_test)
     if list_tests:
-        run_list_tests(test_file, test_case)
+        run_list_tests(test_file_path, test_case)
     elif test_case is not None:
-        run_test_case(test_file, test_case)
+        run_test_case(test_file_path, test_case)
     else:
-        run_all_tests(test_file)
+        run_all_tests(test_file_path)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "test_file",
+        "which_test",
         help=(
-            "Specify a test file. "
+            "Specify a test file path. "
             "Dune expects .exe filenames so it can run them; `dout` will automatically "
             "change the suffix which lets you use .ml files for nicer autocomplete."
         ),
@@ -175,7 +176,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     main(
-        test_file=Path(args.test_file),
+        which_test=args.which_test,
         list_tests=args.list_tests,
         test_case=args.test_case,
     )
