@@ -39,6 +39,7 @@ import argparse
 import subprocess
 import os
 import typing
+import sys
 
 from pathlib import Path
 
@@ -149,18 +150,37 @@ def run_test_case(
     )
 
 
+def run_make_test() -> None:
+    process = subprocess.Popen(
+        ["make", "test"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,  # this means combine them (as opposed to send to our stdout)
+        encoding="utf-8",
+    )
+    output = process.stdout
+    # This is a bit unfortunate: the static type system doesn't know that the flags above
+    # mean stdout cannot be None.
+    if output is not None:
+        for line in output:
+            if line.startswith("ld: warning:"):
+                continue
+            sys.stdout.write(line)
+
+
 def main(
     which_test: str,
     list_tests: bool,
     test_case: str | None,
 ) -> None:
+    if which_test == "all":
+        return run_make_test()
     test_file_path = Path(which_test)
     if list_tests:
-        run_list_tests(test_file_path, test_case)
+        return run_list_tests(test_file_path, test_case)
     elif test_case is not None:
-        run_test_case(test_file_path, test_case)
+        return run_test_case(test_file_path, test_case)
     else:
-        run_all_at_path(test_file_path)
+        return run_all_at_path(test_file_path)
 
 
 if __name__ == "__main__":
