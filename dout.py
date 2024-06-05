@@ -56,11 +56,15 @@ def dune_env() -> typing.Mapping[str, str]:
     return env
 
 
-def get_exe_test_file(test_file_path: Path) -> Path:
+def get_exe_test_file(
+    test_file_path: Path,
+) -> Path:
     return test_file_path.with_suffix(".exe")
 
 
-def dune_exec_command(test_file_path: Path) -> list[str]:
+def dune_exec_command(    
+    test_file_path: Path,
+) -> list[str]:
     return [
         "dune", "exec", str(get_exe_test_file(test_file_path)),
     ]
@@ -68,7 +72,7 @@ def dune_exec_command(test_file_path: Path) -> list[str]:
 
 def dune_exec_subcommand(
     test_file_path: Path,
-    subcommand: list[str]
+    subcommand: list[str],
 ) -> list[str]:
     return [
         *dune_exec_command(test_file_path),
