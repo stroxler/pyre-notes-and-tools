@@ -66,7 +66,10 @@ def dune_exec_command(test_file_path: Path) -> list[str]:
     ]
 
 
-def dune_exec_subcommand(test_file_path: Path, subcommand: list[str]) -> list[str]:
+def dune_exec_subcommand(
+    test_file_path: Path,
+    subcommand: list[str]
+) -> list[str]:
     return [
         *dune_exec_command(test_file_path),
         "--",
@@ -74,14 +77,18 @@ def dune_exec_subcommand(test_file_path: Path, subcommand: list[str]) -> list[st
     ]
 
 
-def run_all_tests(test_file_path) -> None:
+def run_all_at_path(
+    test_file_path: Path,
+) -> None:
     subprocess.check_call(
         dune_exec_command(test_file_path),
         env=dune_env(),
     )
 
 
-def get_test_names(test_file_path) -> str:
+def get_test_names(
+    test_file_path: Path,
+) -> str:
     output = subprocess.check_output(
         dune_exec_subcommand(test_file_path, ["-list-test"]),
         env=dune_env(),
@@ -101,7 +108,10 @@ def find_matching_test_names(
     ]
 
 
-def run_list_tests(test_file_path: Path, test_case: str | None) -> None:
+def run_list_tests(
+    test_file_path: Path,
+    test_case: str | None,
+) -> None:
     list_test_out = get_test_names(test_file_path)
     if test_case is None:
         print(list_test_out)
@@ -113,7 +123,10 @@ def run_list_tests(test_file_path: Path, test_case: str | None) -> None:
             print(test_name)
 
 
-def run_test_case(test_file_path: Path, test_case: str) -> None:
+def run_test_case(
+    test_file_path: Path,
+    test_case: str,
+) -> None:
     matching_tests = find_matching_test_names(
         get_test_names(test_file_path),
         test_case,
@@ -143,7 +156,7 @@ def main(
     elif test_case is not None:
         run_test_case(test_file_path, test_case)
     else:
-        run_all_tests(test_file_path)
+        run_all_at_path(test_file_path)
 
 
 if __name__ == "__main__":
