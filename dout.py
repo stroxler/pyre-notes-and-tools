@@ -40,6 +40,7 @@ import subprocess
 import os
 import typing
 import sys
+import io
 
 from pathlib import Path
 
@@ -150,6 +151,39 @@ def run_test_case(
     )
 
 
+IGNORE_LINE_STARTSWITH = [
+    "ld: warning:",
+    # The saved state test is verbose, strip it's junk output.
+    "Finished SQL Transaction",
+    "Lookup of existing rows",
+    "Wrote 10 new rows",
+    "Updated 0 existing rows",
+    "Finished closing SQL connection",
+    "Writing dependency file with sqlite",
+]
+IGNORE_LINE_CONTAINS = [
+    # Again, verbose test.
+    "Dumping a saved state deptable."
+]
+
+
+def _swallow_ounit_success_output(output: typing.IO[str]) -> bool:
+    """
+    Ounit successful test modules dump 3 lines: a line of all '.'s for each passing
+    case, a line stating how many tests ran, and a line saying "OK".
+
+    This helper runs after we see a line of all "."'s and swallows the next two lines.
+    """
+    ran_line = next(output)
+    if not ran_line.startswith("Ran: "):
+        sys.stdout.write(ran_line)
+        return False
+    ok_line = next(output)
+    if not ok_line.startswith("OK"):
+        sys.stdout.write(ok_line)
+        return False
+    return True
+
 def run_make_test() -> None:
     process = subprocess.Popen(
         ["make", "test"],
@@ -158,13 +192,37 @@ def run_make_test() -> None:
         encoding="utf-8",
     )
     output = process.stdout
+    last_line_was_success = False
     # This is a bit unfortunate: the static type system doesn't know that the flags above
     # mean stdout cannot be None.
     if output is not None:
         for line in output:
-            if line.startswith("ld: warning:"):
+            if any(
+                line.startswith(prefix)
+                for prefix in IGNORE_LINE_STARTSWITH
+            ) or any(
+                pattern in line
+                for pattern in IGNORE_LINE_CONTAINS
+            ):
                 continue
+            # track progress using `.` at the whole-module level
+            if all(char == "." for char in line.strip()):
+                was_ok_test = _swallow_ounit_success_output(output)
+                if was_ok_test:
+                    if not last_line_was_success:
+                        sys.stdout.write("Passing test modules: ")
+                    sys.stdout.write(".")
+                    sys.stdout.flush()
+                    last_line_was_success = True
+                    continue
+            # If we hit a failure, we need to break lines
+            if last_line_was_success:
+                sys.stdout.write("\n")
+            last_line_was_success = False
             sys.stdout.write(line)
+    if last_line_was_success:
+        # Ensure we add a line break after passing tests.
+        sys.stdout.write("\n")
 
 
 def main(
