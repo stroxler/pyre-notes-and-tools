@@ -156,14 +156,14 @@ IGNORE_LINE_STARTSWITH = [
     # The saved state test is verbose, strip it's junk output.
     "Finished SQL Transaction",
     "Lookup of existing rows",
-    "Wrote 10 new rows",
     "Updated 0 existing rows",
     "Finished closing SQL connection",
     "Writing dependency file with sqlite",
 ]
 IGNORE_LINE_CONTAINS = [
-    # Again, verbose test.
-    "Dumping a saved state deptable."
+    # Again, verbose test; a few of the output lines aren't 100% predictable.
+    "Dumping a saved state deptable.",
+    " new rows",
 ]
 
 
