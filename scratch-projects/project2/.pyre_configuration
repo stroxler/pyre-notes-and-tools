@@ -1,0 +1,4 @@
+{
+    "source_directories": ["."],
+    "typeshed": "~/fbsource/fbcode/tools/pyre/stubs/typeshed/typeshed/"
+}
