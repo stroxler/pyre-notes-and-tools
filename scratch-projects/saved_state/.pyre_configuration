@@ -1,0 +1,4 @@
+{
+    "source_directories": ["."],
+    "typeshed": "../typeshed-stdlib-only"
+}
