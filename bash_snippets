@@ -1,0 +1,11 @@
+# Make `$PYRE_CLIENT` point at a locally-built-by-buck open-source client
+export PYRE_CLIENT="$(cd ~/fbsource/fbcode > /dev/null && buck build fbcode//tools/pyre/client:pyre --show-full-simple-output)"
+
+# Make `$PYRE_CLIENT` point at a locally-built-by-buck client with extra hooks (e.g. for saved state)
+export PYRE_CLIENT="$(cd ~/fbsource/fbcode > /dev/null && buck build fbcode//tools/pyre/facebook/client:pyre --show-full-simple-output)"
+
+# Make `$PYRE_BINARY` point at a locally-built-by-buck binary
+export PYRE_BINARY="$(cd ~/fbsource/fbcode > /dev/null && buck build fbcode//tools/pyre/source:main --show-full-simple-output)"
+
+# Make `$PYRE_BINARY` point at a locally-built-by-dune binary
+export PYRE_BINARY=/Users/stroxler/fbsource/fbcode/tools/pyre/source/_build/default/main.exe
