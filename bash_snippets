@@ -9,3 +9,6 @@ export PYRE_BINARY="$(cd ~/fbsource/fbcode > /dev/null && buck build fbcode//too
 
 # Make `$PYRE_BINARY` point at a locally-built-by-dune binary
 export PYRE_BINARY=/Users/stroxler/fbsource/fbcode/tools/pyre/source/_build/default/main.exe
+
+# Get a .merlin file from a buck build
+bash ~/fbsource/fbcode/scripts/pyre/buck-ocaml/make-dot-merlin.sh
