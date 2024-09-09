@@ -12,3 +12,7 @@ export PYRE_BINARY=/Users/stroxler/fbsource/fbcode/tools/pyre/source/_build/defa
 
 # Get a .merlin file from a buck build
 bash ~/fbsource/fbcode/scripts/pyre/buck-ocaml/make-dot-merlin.sh
+
+# Regenerate conformance results (requires buck build)
+cd ~/fbsource/fbcode/tools/pyre/facebook/conformance && buck2 run :conformance_output_script -- ./third_party
+
