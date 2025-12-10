@@ -860,3 +860,300 @@ AI coding assistants fundamentally change this calculus:
   - Start untyped, have AI add types incrementally as needed
   - Type checker guides where types would be most valuable
   - More pragmatic than "all or nothing" typing strategies
+
+### Topic 3: Using Python Types to Build Security Libraries
+
+#### The Type-Driven Security Concept
+
+Beyond catching bugs, Python's type system can be used to **encode security properties** and **prevent entire classes of vulnerabilities** at compile time. The key idea: use types to distinguish between safe and unsafe data, making it impossible (or at least difficult) to misuse security-critical APIs.
+
+**Core Pattern: Tagged Types for Security**
+- Use `NewType` or phantom types to distinguish "sanitized" from "raw" data
+- Functions accept only the safe type, forcing sanitization at boundaries
+- Type checker enforces that unsafe data cannot flow to dangerous sinks
+
+**Example Conceptual Pattern:**
+```python
+from typing import NewType
+
+# Define distinct types for raw vs sanitized data
+UnsanitizedHTML = NewType('UnsanitizedHTML', str)
+SanitizedHTML = NewType('SanitizedHTML', str)
+SQLQuery = NewType('SQLQuery', str)
+UnsafeSQL = NewType('UnsafeSQL', str)
+
+# Sanitization functions convert between types
+def sanitize_html(raw: UnsanitizedHTML) -> SanitizedHTML:
+    # ... sanitization logic ...
+    return SanitizedHTML(...)
+
+# Rendering functions only accept safe types
+def render_to_page(html: SanitizedHTML) -> None:
+    # Type checker ensures only sanitized HTML can be rendered
+    ...
+```
+
+This pattern prevents XSS by making it a **type error** to render unsanitized HTML.
+
+#### PEP 675: LiteralString for Injection Prevention
+
+**[PEP 675](https://peps.python.org/pep-0675/)** (Python 3.11+) introduced `LiteralString`, a type specifically designed to prevent injection attacks:
+
+**The Problem It Solves:**
+- SQL injection, XSS, command injection, and other attacks occur when user-controlled strings are mixed with executable code
+- Traditional approaches rely on developer discipline ("remember to sanitize!")
+- Type system can catch these mistakes at compile time
+
+**How LiteralString Works:**
+- A type that accepts only string literals written in the source code
+- Distinguishes between `"hardcoded string"` (safe) and `input()` or user data (unsafe)
+- When strings are composed entirely from literals (via concatenation, formatting, etc.), they remain `LiteralString`
+- As soon as any non-literal `str` is mixed in, the type becomes plain `str`
+
+**Example Usage:**
+```python
+from typing import LiteralString
+
+def execute_query(sql: LiteralString) -> None:
+    cursor.execute(sql)
+
+# ✅ Type checker allows - string is a literal
+execute_query("SELECT * FROM users WHERE id = ?")
+
+# ✅ Also allowed - composed from literals
+table = "users"
+query = f"SELECT * FROM {table}"
+execute_query(query)
+
+# ❌ Type error - input() returns str, not LiteralString
+user_input = input("Enter table name: ")
+execute_query(f"SELECT * FROM {user_input}")  # Type checker catches this!
+```
+
+**Security Applications from PEP 675:**
+1. **SQL injection prevention**: Require queries to be literal strings
+2. **Command injection blocking**: Shell commands must be hardcoded
+3. **XSS prevention**: HTML templates must be literals
+4. **Server-side template injection (SSTI)**: Template strings must be trusted
+5. **Logging format injection**: Log format strings must be literals (prevents DoS)
+
+**Real-World Impact:**
+- [Added to Python 3.11](https://www.turingtaco.com/exploring-the-impact-of-pep-675/) (accepted in 2021)
+- [Pyre had reference implementation in v0.9.8](https://peps.python.org/pep-0675/)
+- Mypy and Pyright now support it
+- Forces developers to use [trusted, hardcoded strings in critical operations](https://www.javacodegeeks.com/2025/06/understanding-literalstring-in-python-3-11-a-deep-dive.html)
+
+**Important Limitations:**
+- **Not a complete solution**: "A clever, malicious developer attempting to circumvent the protections offered by LiteralString will always succeed" (PEP 675)
+- **Compile-time only**: No runtime enforcement without type checkers
+- **Easy to bypass**: `cast()` or `# type: ignore` can circumvent checks
+- **Content-agnostic**: Only verifies the string is literal, not that it's safe
+- **F-string challenges**: [Dynamic f-strings can bypass protection](https://www.javacodegeeks.com/2025/06/understanding-literalstring-in-python-3-11-a-deep-dive.html)
+
+**Best Practice Pattern:**
+LiteralString works best as part of defense-in-depth:
+```python
+def execute_query(sql: LiteralString, params: tuple) -> None:
+    # LiteralString ensures query structure is trusted
+    # Parameterized queries ensure values are escaped
+    cursor.execute(sql, params)
+
+# Safe pattern: literal query + parameterized values
+execute_query("SELECT * FROM users WHERE name = ?", (user_input,))
+```
+
+This combines:
+1. Type safety (query structure must be literal)
+2. Parameterization (values are safely escaped)
+3. Clear separation of code (literal) from data (parameters)
+
+**Why This Matters for the Talk:**
+- Demonstrates Python typing solving **real security problems**, not just catching typos
+- Shows evolution of type system to address practical needs
+- Example of a feature explicitly motivated by security (unlike most type features)
+- Illustrates both power and limitations of Python's gradual typing for security
+
+#### Meta's Tools and Approaches
+
+**[Pysa (Python Static Analyzer)](https://pyre-check.org/docs/pysa-basics/)** - Meta's open-source security tool:
+- Built on top of Pyre (Meta's type checker)
+- Performs [taint tracking analysis](https://www.infosecinstitute.com/resources/application-security/pysa-101-overview-facebook-open-source-python-code-analysis-tool/) to find security vulnerabilities
+- Tracks flow of untrusted data from sources (user input) to sinks (SQL queries, HTML rendering)
+- Integrates with type information to improve accuracy
+- [Open-sourced in 2020](https://simonwillison.net/2020/Aug/7/pysa/) to help other organizations find security bugs
+- Can detect SQL injection, XSS, command injection, and other OWASP Top 10 vulnerabilities
+
+**Meta's Internal Security Frameworks** (limited public information):
+- Meta reportedly uses type-based patterns in internal frameworks
+- Safe Application Framework (SAF) mentioned in your prompt - specific details not widely published
+- The pattern: Build safe wrapper APIs, then use types to enforce their correct usage
+- Used across Instagram, WhatsApp, and Facebook infrastructure
+
+**How Pysa Works with Types:**
+1. Marks certain functions/parameters as "sources" of tainted data (user input, network data, etc.)
+2. Marks certain functions/parameters as "sinks" where tainted data is dangerous (database queries, shell commands, HTML rendering)
+3. Uses type information to improve accuracy of tracking
+4. Reports when untrusted data can flow to a dangerous sink without sanitization
+
+#### The Phantom Types Library
+
+[**phantom-types**](https://pypi.org/project/phantom-types/) is a Python library for creating "phantom types" - types that exist only at type-checking time:
+
+- Allows creating refined types with runtime predicates
+- More powerful than `NewType` for encoding invariants
+- Can express properties like "non-empty string", "positive integer", "valid email"
+- Security use case: Types that validate data format or sanitization state
+
+**Example use cases for security:**
+- `ValidatedEmail` - proven to match email regex
+- `StrongPassword` - meets complexity requirements
+- `SafeFileName` - doesn't contain path traversal sequences
+- `AuthorizedUserId` - passed through authorization check
+
+The key insight: **Security properties become type properties**, checked at compile time (or at least at explicit validation boundaries).
+
+#### Typestate Pattern and API Misuse Prevention
+
+Inspired by languages like Rust, the [**typestate pattern**](https://zerotomastery.io/blog/rust-typestate-patterns/) uses types to encode the state of an object:
+
+- Different types for different states (e.g., `OpenConnection` vs `ClosedConnection`)
+- Methods consume one type and return another, encoding valid state transitions
+- Type system prevents calling methods in the wrong state
+
+**Security applications:**
+- Cryptographic APIs: `EncryptedData` vs `PlaintextData`, preventing misuse
+- Authentication: `UnauthenticatedRequest` → `AuthenticatedRequest` → `AuthorizedRequest`
+- File operations: `ReadOnlyFile` vs `WritableFile`, preventing permission errors
+
+Python's type system isn't as powerful as Rust's for this pattern, but you can still express useful invariants.
+
+#### Pydantic for Security at Data Boundaries
+
+[**Pydantic**](https://medium.com/@pranjalll/how-i-use-pydantic-to-add-real-type-safety-to-my-python-code-691837d8e68b) is widely used for data validation, but has important **security implications**:
+
+**Key Security Benefits:**
+1. **Input Validation**: Reject malformed data at the boundary before it reaches business logic
+2. **Type Coercion**: Controlled conversion prevents type confusion bugs
+3. **Constrained Types**: Built-in validators for strings, numbers, emails, URLs, etc.
+4. **Custom Validators**: Can encode security-specific checks
+
+**Security Pattern with Pydantic:**
+```python
+from pydantic import BaseModel, constr, validator
+
+class UserInput(BaseModel):
+    username: constr(min_length=3, max_length=20, regex=r'^[a-zA-Z0-9_]+$')
+    age: conint(gt=0, lt=150)
+
+    @validator('username')
+    def no_sql_injection_patterns(cls, v):
+        dangerous = ["'", '"', '--', ';', 'DROP', 'SELECT']
+        if any(pattern in v.upper() for pattern in dangerous):
+            raise ValueError('Suspicious input detected')
+        return v
+```
+
+This combines type safety with runtime validation, creating a **verified boundary** between untrusted external data and trusted internal code.
+
+#### Real-World Examples and Case Studies
+
+1. **SQL Injection Prevention**
+   - [Best practice](https://realpython.com/prevent-python-sql-injection/): Use parameterized queries
+   - Type-based approach: Distinguish `RawSQL` from `ParameterizedQuery`
+   - Some ORMs use types to make SQL injection harder (but not impossible)
+
+2. **XSS Prevention**
+   - Traditional: Remember to sanitize, hope developers don't forget
+   - Type-based: `UnsanitizedHTML` vs `SanitizedHTML`, type checker enforces sanitization
+   - Frameworks like Django have template engines that auto-escape, but types could make this more explicit
+
+3. **Command Injection Prevention**
+   - Distinguish shell strings from safe command arguments
+   - Type system prevents directly passing user input to shell
+
+4. **Path Traversal Prevention**
+   - Use types to mark validated file paths
+   - Prevent `../../../../etc/passwd` style attacks by requiring validation
+
+#### Challenges and Limitations
+
+**Python's Type System Limitations for Security:**
+- Type hints are **optional and not enforced at runtime** by default
+- Easy to use `cast()` or `# type: ignore` to bypass checks
+- No way to prevent runtime type violations without additional tooling
+- Limited compared to languages like Rust with stronger type systems
+
+**Practical Challenges:**
+- **Adoption friction**: Requires discipline to use typed security APIs consistently
+- **Library ecosystem**: Most Python libraries don't use security-typed patterns
+- **Complexity**: Security types can make APIs more verbose and harder to use
+- **False security**: Types help but don't eliminate all vulnerabilities
+
+**When Type-Based Security Helps Most:**
+- Internal frameworks and libraries (like Meta's SAF)
+- Teams with strong type checking discipline
+- APIs with clear security boundaries
+- Combined with runtime validation (Pydantic) and static analysis (Pysa)
+
+#### Research and Future Directions
+
+**Limited Academic Research:**
+- Most work on type-driven security is in languages like Rust, Haskell, OCaml
+- Python-specific research is sparse
+- Pysa is the most significant contribution from industry
+
+**Potential Future Developments:**
+- More libraries adopting phantom types and NewType patterns for security
+- Better integration between type checkers and security scanners
+- Runtime enforcement of type-based security properties
+- Tools to automatically generate security types from API specifications
+
+**Cross-Language Inspiration:**
+- **Rust**: Extensive use of typestate and ownership for memory safety
+- **TypeScript**: Some libraries use branded types for security
+- **Haskell**: Strong tradition of encoding security properties in types
+- **Python could learn from these** while working within its gradual typing constraints
+
+#### Potential Talk Angles
+
+1. **"LiteralString: A type made for security"**: Deep dive into PEP 675
+   - Show concrete examples of injection attacks it prevents
+   - Demonstrate how type checker catches unsafe patterns
+   - Honest discussion of limitations and where it fits in defense-in-depth
+   - Highlight that this is a rare case of a type feature explicitly designed for security
+
+2. **"Types as security documentation"**: Show how security properties can be self-documenting through types
+   - Compare: Comments saying "must sanitize" vs types that enforce it
+   - LiteralString vs NewType vs phantom-types progression
+
+3. **"The Pysa story"**: How Meta uses types + taint analysis to find vulnerabilities at scale
+   - Live demo of Pysa catching a SQL injection or XSS bug
+   - Show how it integrates with type information
+
+4. **"From NewType to phantom-types"**: Evolution of encoding security invariants
+   - Show progression from basic NewType to sophisticated phantom types
+
+5. **"Pydantic: The security boundary"**: How validation + types protect internal code
+   - Pattern: Validate at edges, trust in the middle (enabled by types)
+
+6. **"What Python can learn from Rust"**: Typestate pattern for security
+   - Show Rust example, then demonstrate approximation in Python
+
+7. **"The security types gap"**: What Python's type system can and cannot do for security
+   - Honest assessment of limitations
+   - When to use types vs other security tools (fuzzing, pentesting, code review)
+
+#### Connections to Other Topics
+
+- **Link to Topic 2 (AI)**: AI-generated code may have security vulnerabilities
+  - Type-based security can catch some AI mistakes automatically
+  - Pysa + AI workflow: AI generates code → Pysa checks for security issues
+
+- **Link to Topic 1 (IDE)**: IDE integration with security types
+  - Real-time feedback when you're about to pass unsanitized data to a sink
+  - Autocomplete suggests safe APIs over unsafe ones
+
+- **Link to main talk theme**: Security is another dimension where dynamic and typed Python differ
+  - Dynamic Python relies on developer discipline for security
+  - Typed Python can encode security properties, reducing reliance on memory/discipline
+  - But types alone aren't sufficient - need defense in depth
