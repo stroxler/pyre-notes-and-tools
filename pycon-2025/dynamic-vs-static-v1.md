@@ -4,7 +4,7 @@
 
 # Duration
 
-20 Minutes
+30 Minutes
 
 # Audience
 
