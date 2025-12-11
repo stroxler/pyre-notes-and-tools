@@ -75,14 +75,14 @@ Over the years many library maintainers have added types because they find types
 In addition, many new libraries are type-first by design, and often the types can actually save you a lot of time and work:
 - Pydantic lets you write a class with type hints and get validation and serialization for free
   - In traditional python, validation could take many lines of code and be hard to maintain or read
+- FastAPI uses type hints (and Pydantic) to get request validation, API schemas, and documentation automatically from type hints
+- SQLAlchemy is a type-powered library for integrating with relational databases
+  - It fuses SQLAlchemy and Pydantic to bring validation and DB integration togetehr
 - Hydra is a configuration engine (originally built with ML applications in mind) that can integrate with Pydantic to type configurations
   - It's been estimated that over half of outages are caused by configuration errors
-- FastAPI uses type hints (and Pydantic) to get request validation, API schemas, and documentation automatically from type hints
 - Typer generates CLI interfaces from type hints
   - Compared to older CLI interfaces this can be more concise and much easier to document
   - This is a great example of why type hints may now be worth using even in small scripts
-- SQLAlchemy is a type-powered library for integrating with relational databases
-  - It fuses SQLAlchemy and Pydantic to bring validation and DB integration togetehr
 
 ## Shift 3: AI-assisted Programming Accelerates these Trends (10 minutes)
 
