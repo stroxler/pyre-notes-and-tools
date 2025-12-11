@@ -74,8 +74,8 @@ Need to figure out if / where these kinds of blurbs should be included in the fi
 ## Dynamic Pattern 2: Heterogeneous collections (5 minutes)
 
 - Idiomatic dynamically-typed Python makes wide use of built-in-data structures
-  - Common for data ingestion (e.g. a web scraper pulling in json)
-  - Common for configuration
+  - Common for data ingestion, consuming json APIs or configuration
+  - DataFrames, which are only partially typed - type checkers don't understand the column types
   - Can be a core part of an implementation (example - maybe a tiny interpreter, or minikanren?)
 - Statically typed python doesn't support code that relies on heterogenious containers well
   - Typed dicts can help with dicts, but not sets or lists
@@ -85,23 +85,13 @@ Need to figure out if / where these kinds of blurbs should be included in the fi
 - One approach that often helps, not only with typing but with application architecture, is defining a validation barrier
   - Libraries like Pydantic can help with this
 
-## Dynamic Pattern 3: Data Frames (5 minutes)
+## Dynamic Pattern 3: Control-flow-sensitive types and dynamic class construction (5 minutes)
 
-- Data frames are extremely popular in Python applications
-- Data frame libraries like Pandas have some typing support, but there are gaps:
-  - The type system typically can't express column types well
-  - As a result there are big gaps in the type system - e.g. the IDE can't autocomplete string-specific operations on a string column
-- In theory, it's already possible to use 
-
-## ADDITIONAL TOPICS - I NEED TO FIGURE OUT THE TIME BUDGET, MAYBE SWAP OUT TOPICS
-
-
-**skipped topic** Control-flow sensitive types: a lot of types are really dependent types, or involve narrowing information beyond what the type system can track (e.g. a single condition controlling many narrows and being reused repeatedly)
-  - There's overlap here with heterogenious collections - for example often highly dynamic code might rely on invariants in the data structures that can't be expressed easily with static types
-
-**skipped topic** Metaprogramming and dynamic attributes, the use of dataframes.
-
-**possible reorganization** DataFrames are really just a special case of heterogeneous collections; we could probably regroup to combine them, but I don't want the topic to turn into most of the talk all by itself.
+- It's common for dynamic code to use narrows (which static type checkers do support in simple cases) in ways that exceed type checker limitations, for example narrowing multiple variables together and reusing the condition later, or relying on invariants that aren't written down as part of the type reasoning.
+- Class construction is another common place for highly dynamic logic
+  - Dynamically-typed python just sets attributes on classes and instances freely; often an attribute might or might not be set and the runtime just throws an error on bad lookups
+  - Some type checkers support inferring types not declared in the body (especially if set in constructors), but there are limits both to inference and safety and tradeoffs between them
+  - And it's possible to create some really cool magic using custom metaclasses or class decorators. This is sometimes used for example to define methods automatically based on class attributes. With the exception of dataclass-like libraries, static type checkers generally cannot understand this.
 
 
 ## Bridging the gap (10 minutes)
@@ -111,8 +101,8 @@ Need to figure out if / where these kinds of blurbs should be included in the fi
 For fast-changing and business-critical code where safety and great tooling support is essential, it may be worth substatially rewriting the code to get types.
 
 Be on the lookout for easy wins:
-- Containers that should be typed using covariant types (e.g. `Sequence` instead of `list`)
 - Situations where refactoring to use simple types like `dataclasses` can make things clearer and play well with the type system
+- Containers that should be typed using covariant types (e.g. `Sequence` instead of `list`)
 - Protocols that just need to be defined, cases where
 
 ### Living with dynamically typed code
@@ -135,6 +125,7 @@ Python's type system has already expanded to close many gaps:
 - PEP 612 (ParamSpec): dramatically improved decorator typing
 - PEP 647/724 (TypeGuard/TypeIs): better custom narrowing
 - PEP 673 (Self): recursive type annotations
+- PEP 681 (Data Class Transforms): greatly improved support for libraries like attrs and pydantic
 The type system can evolve to handle dynamic patterns
 
 Are there opportunities to close more gaps?
