@@ -1,6 +1,6 @@
 # Title
 
-**Putting a Duck-shaped peg in a type hole: when static typing doesn't fit (and when / how to bridge the gap)**
+**Mind the gap! When Python’s dynamic patterns fight static types**
 
 # Duration
 
@@ -156,3 +156,23 @@ Are there opportunities to close more gaps?
   - Abstract operations relating columns to types?
 - Explicit duck-type declarations?
 The typing community is active and open to proposals
+
+
+# Additional Notes
+
+## Why this talk matters now
+
+- Survey data divide: 91% of typing-aware developers use types, but many developers avoid typing entirely
+- Divide in the community: many Python developers advocate types strongly or dislike them, often the gap is less clear than it could be
+- Ecosystem changes: many libraries (e.g. numpy, django) are in the midst of trying to adopt types and may face these challenges
+
+## What Attendees will learn
+
+- Historical context on how Python was used before static types
+- An understanding of common challenges trying to add types to code whose semantics don't fit
+- Approaches for dealing with code that is difficult to statically type
+- Perspective on how the Python type system sometimes evolves to handle a wider range of existing patterns
+
+## Differentiation from existing talks
+
+Typical typing talks are either "how to use types" (focusing on adding types assuming code is already possible to statically type) or "why types are good" (advocacy). This talk is "when types don't fit" (semantics) and options for what to do, filling a gap for developers facing real migration challenges.

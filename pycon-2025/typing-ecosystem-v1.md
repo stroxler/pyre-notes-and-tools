@@ -1,6 +1,6 @@
 # Title
 
-**Python Types for Flow and Profit: The Case For Adopting Types in 2026**
+**Type Hints for Velocity: The Next Wave in Python**
 
 # Duration
 
@@ -27,14 +27,6 @@ With AI-assisted programming, this trend shows signs accellerating even more bec
 - AI can make it much easier to write type hints on both new and existing code
 - Type information and type checking can be a big help to AI, reducing hallucinations and providing very fast iteration
 
-## Does the proposal need more pizzaz?
-
-The v0 doc includes a few sections I've skipped for now:
-- "Why this talk matters now"
-- "What attendees will learn"
-- "Differentiation"
-
-Need to figure out if / where these kinds of blurbs should be included in the final proposal.
 
 # Detailed Outline
 
@@ -126,3 +118,31 @@ Now's an exciting time to explore the future of Python, and how types might or m
 - Learning how best to integrate type information and codee indexes with AI
 - Understanding how to teach AI to use types wisely
 - Continuing to improve the type system so that more of the dynamic features we love in Python can be understood programmatically
+
+# Additional Notes
+
+## Why this talk matters now
+
+This talk covers recent rapid shifts in the tooling and library ecosystem that are actively underway
+- New type checkers like Pyrefly, ty, and zuban
+- A steady increase in type availability in key packages like numpy and SqlAlchemy
+- AI development shows signs of rapidly accelerating the changes already making types easier to use and more valuable
+
+I'd like to note that this github blog came out *as I was writing* this proposal:
+- https://github.blog/news-insights/octoverse/the-new-identity-of-a-developer-what-changes-and-what-doesnt-in-the-ai-era/
+  - Search for "Octoverse" in the "Ecosystem Signals" (sorry I can't figure out how to link a section header)
+- They note that Typescript development is up sharply, overtaking Python and javascript in 2025
+- They explicitly hypothesize that the role of types in handling AI may be a driving factor
+
+
+## What Attendees will learn
+
+- Changes in python tooling that make types easier to add and more useful for hacking
+- Changes in the python library ecosystem to use types better, and sometimes get functionality for free from types
+- How AI development may rapidly accelerate these trends
+  - Further bringing down the costs of adding and using types
+  - Greatly increasing the importance of types for validating generated code and limiting hallucinations
+
+## Differentiation from existing talks
+
+Most typing talks focus on how to use type hints or on how type hints can help catch bugs. This talk focuses on broad ecosystem changes happening that are changing the tradeoffs around using type hints in ways developers may not be tracking.
