@@ -23,7 +23,7 @@ This talk explores how changes in the Python ecosystem have drastically changed 
 - Better typed libraries, better type inference, and faster type checkers have all made it easier to add types
 - The emergence of type-centric libraries and the integration of type checkers into IDE tooling have made types more useful than ever
 
-With AI-assisted programming, this trend shows signs accelerating even more because
+With AI-assisted programming, this trend shows signs of accelerating even more because
 - AI can make it much easier to write type hints on both new and existing code
 - Type information and type checking can be a big help to AI, reducing hallucinations and providing very fast iteration
 
@@ -35,7 +35,7 @@ Conventional wisdom in Python has been that types are mainly useful in large, lo
 - Many Python programs can't easily be statically typed (this is still true!)
 - Writing out types took time, annotating codebases after the fact was very difficult
 - Often third-party libraries lacked types, so even with annotations you might not get much safety
-- Type checkers were often slow to run, the feedback loop was not nearly as good as, for example, Java with an IDE like Intellij.
+- Type checkers were often slow to run, the feedback loop was not nearly as good as, for example, Java with an IDE like IntelliJ.
 
 Recent improvements to the tooling around Python typing and library ecosystem have shifted the tradeoff. Typing might still not be right for you, but it's worth understanding some of these shifts.
 
@@ -124,20 +124,20 @@ Now's an exciting time to explore the future of Python, and how types might or m
 
 This talk covers recent rapid shifts in the tooling and library ecosystem that are actively underway
 - New type checkers like Pyrefly, ty, and zuban
-- A steady increase in type availability in key packages like numpy and SqlAlchemy
+- A steady increase in type availability in key packages like NumPy and SQLAlchemy
 - AI development shows signs of rapidly accelerating the changes already making types easier to use and more valuable
 
 I'd like to note that this github blog came out *as I was writing* this proposal:
 - https://github.blog/news-insights/octoverse/the-new-identity-of-a-developer-what-changes-and-what-doesnt-in-the-ai-era/
   - Search for "Octoverse" in the "Ecosystem Signals" (sorry I can't figure out how to link a section header)
-- They note that Typescript development is up sharply, overtaking Python and javascript in 2025
+- They note that TypeScript development is up sharply, overtaking Python and JavaScript in 2025
 - They explicitly hypothesize that the role of types in handling AI may be a driving factor
 
 
 ## What Attendees will learn
 
-- Changes in python tooling that make types easier to add and more useful for hacking
-- Changes in the python library ecosystem to use types better, and sometimes get functionality for free from types
+- Changes in Python tooling that make types easier to add and more useful for hacking
+- Changes in the Python library ecosystem to use types better, and sometimes get functionality for free from types
 - How AI development may rapidly accelerate these trends
   - Further bringing down the costs of adding and using types
   - Greatly increasing the importance of types for validating generated code and limiting hallucinations

@@ -29,14 +29,14 @@ But often developers and even type theorists approach the problem of turning unt
 Python was conceived as a dynamically typed language, and much of its rich library ecosystem was written without types. And many of the powerful patterns that make dynamically typed Python useful are difficult to statically type, for example:
 - Pervasive use of duck typing
 - Use of metaprogramming and classes with highly dynamic behavior
-- Reliance of flow-sensitive type information that type checkers cannot track
+- Reliance on flow-sensitive type information that type checkers cannot track
 - Using heterogeneous containers in ways that the type system can't model
 
 We'll explore some of these patterns, why they are hard to type and might not be worth typing, and some advice for how to get the most out of the type system without trying to force inherently dynamic code to be statically typed.
 
 We'll also look at the many ways Python's type system has evolved to support more dynamic use cases over the years, and a few possible future directions.
 
-## Does the proposal need more pizzaz?
+## Does the proposal need more pizzazz?
 
 The v0 doc includes a few sections I've skipped for now:
 - "Why this talk matters now"
@@ -52,8 +52,8 @@ Need to figure out if / where these kinds of blurbs should be included in the fi
 A lightning introduction to static type syntax, gradual typing and the `Any` type
 
 A very short discussion of the evolution of types in the library ecosystem
-- Increasing adoption of types by widely-used libraries like numpy
-- New libraries like Pydantic, typer, and httpx that are type-centric
+- Increasing adoption of types by widely-used libraries like NumPy
+- New libraries like Pydantic, Typer, and HTTPX that are type-centric
 
 A very short discussion of the role of types in tooling
 - Types at the center of IDE functionality in OOP languages (method resolution)
@@ -64,8 +64,8 @@ A very short discussion of the role of types in tooling
 Introduction to duck typing and how the runtime is duck-typed
 - Relationship to nominal typing and to inheritance
 - How it allows unexpected use of libraries. Examples in the wild:
-  - cupy and cuDF duck type numpy and pandas classes with GPU-accelerated versions
-  - The pytorch compiler relies on a FakeTensor that duck types Tensor for tracing
+  - CuPy and cuDF duck type NumPy and Pandas classes with GPU-accelerated versions
+  - The PyTorch compiler relies on a FakeTensor that duck types Tensor for tracing
 
 Discussion of duck-typing as a programming pattern
 - Enables using libraries in unexpected ways (a familiar example: Python unit testing has always relied heavily on duck typing; this is part of how a mock works)
@@ -81,11 +81,11 @@ Duck typing and the static type system
 ## Dynamic Pattern 2: Heterogeneous Collections (5 minutes)
 
 Idiomatic dynamically-typed Python makes wide use of built-in data structures
-- Common for data ingestion, consuming json APIs or configuration
+- Common for data ingestion, consuming JSON APIs or configuration
 - DataFrames, which are only partially typed - type checkers don't understand the column types
 - Can be a core part of an implementation (example - maybe a tiny interpreter, or minikanren?)
 
-Statically typed python doesn't support code that relies on heterogeneous containers well
+Statically typed Python doesn't support code that relies on heterogeneous containers well
 - Typed dicts can help with dicts, but not sets or lists
 - Big unions are hard to work with, and even if you narrow types the narrowing may not persist
 - Mutable containers are invariant, and often existing logic uses them covariantly
@@ -96,12 +96,12 @@ One approach that often helps, not only with typing but with application archite
 
 ## Dynamic Pattern 3: Flow-dependent Logic and Dynamic Classes (5 minutes)
 
-It's common for dynamic code to use narrows (which static type checkers do support in simple cases) in ways that exceed type checker limitations, for example:
+It's common for dynamic code to use type narrows (which static type checkers do support in simple cases) in ways that exceed type checker limitations, for example:
 - narrowing multiple variables together and reusing the condition later
 - relying on invariants that aren't written down as part of the type reasoning
 
 Class construction is another common place for highly dynamic logic
-- Dynamically-typed python just sets attributes on classes and instances freely; often an attribute might or might not be set and the runtime just throws an error on bad lookups
+- Dynamically-typed Python just sets attributes on classes and instances freely; often an attribute might or might not be set and the runtime just throws an error on bad lookups
 - Some type checkers support inferring types not declared in the body (especially if set in constructors), but there are limits both to inference and safety and tradeoffs between them
 - It's possible to create some really cool magic using custom metaclasses or class decorators.
   - This is sometimes used, for example to define methods automatically based on class attributes.
@@ -128,7 +128,7 @@ Often it might not be worth adding types to existing code.
 
 If you have stable code that is battle-tested, has good unit tests, and doesn't change often, the benefits of types may not matter much and the cost of trying to make changes could be too high.
 
-If your code is inherently very dynamic - like data analyses making heavy use of dataframes, it can be wise to embrace `Any` where it is needed. You may still see big benefits from IDE features from even partial type information.
+If your code is inherently very dynamic - like data analyses making heavy use of DataFrames, it can be wise to embrace `Any` where it is needed. You may still see big benefits from IDE features from even partial type information.
 
 In a bigger application, it can be very helpful to focus on providing types at boundaries between systems, and often data validation with libraries like Pydantic or runtime type checkers like beartype and typeguard can help.
 
@@ -162,9 +162,9 @@ The typing community is active and open to proposals
 
 - Survey data divide: 91% of typing-aware developers use types, but many developers avoid typing entirely
 - Divide in the community: many Python developers advocate types strongly or dislike them, often the gap is less clear than it could be
-- Ecosystem changes: many libraries (e.g. numpy, django) are in the midst of trying to adopt types and may face these challenges
+- Ecosystem changes: many libraries (e.g. NumPy, Django) are in the midst of trying to adopt types and may face these challenges
 
-## What Attendees will learn
+## What attendees will learn
 
 - Historical context on how Python was used before static types
 - An understanding of common challenges trying to add types to code whose semantics don't fit
