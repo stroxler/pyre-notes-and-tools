@@ -27,7 +27,6 @@ With AI-assisted programming, this trend shows signs accellerating even more bec
 - AI can make it much easier to write type hints on both new and existing code
 - Type information and type checking can be a big help to AI, reducing hallucinations and providing very fast iteration
 
-
 # Details
 
 ## Introduction: Why Types Feel Different now (5 minutes)
