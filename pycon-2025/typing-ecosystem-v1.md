@@ -23,7 +23,7 @@ This talk explores how changes in the Python ecosystem have drastically changed 
 - Better typed libraries, better type inference, and faster type checkers have all made it easier to add types
 - The emergence of type-centric libraries and the integration of type checkers into IDE tooling have made types more useful than ever
 
-With AI-assisted programming, this trend shows signs accellerating even more because
+With AI-assisted programming, this trend shows signs accelerating even more because
 - AI can make it much easier to write type hints on both new and existing code
 - Type information and type checking can be a big help to AI, reducing hallucinations and providing very fast iteration
 
@@ -69,8 +69,8 @@ In addition, many new libraries are type-first by design, and often the types ca
 - Pydantic lets you write a class with type hints and get validation and serialization for free
   - In traditional python, validation could take many lines of code and be hard to maintain or read
 - FastAPI uses type hints (and Pydantic) to get request validation, API schemas, and documentation automatically from type hints
-- SQLAlchemy is a type-powered library for integrating with relational databases
-  - It fuses SQLAlchemy and Pydantic to bring validation and DB integration togetehr
+- SQLModel is a type-powered library for integrating with relational databases
+  - It fuses SQLAlchemy and Pydantic to bring validation and DB integration together
 - Hydra is a configuration engine (originally built with ML applications in mind) that can integrate with Pydantic to type configurations
   - It's been estimated that over half of outages are caused by configuration errors
 - Typer generates CLI interfaces from type hints
@@ -91,8 +91,8 @@ More importantly, types are a very valuable tool for using AI to work with code
   - LSP-MCP integrations can allow AI to query information (like what is this type, where is it defined, what completions are available) just like an IDE
 - And types are a valuable tool for validating the results
   - Type checking is very fast, can provide a much tighter inner iteration cycle for an AI agent than running tests
-    - Academic research suggests up to an 80% reduction in the use of undefined symbols
-    - The very specific errors, which include line numbers
+    - Academic research suggests up to an 80% reduction in mistakes where generated code tries to use undefined symbols
+    - The very specific errors, which include line numbers, seem to accelerate AI's ability to course-correct from feedback
   - Types can also help with one of the biggest concerns with AI coding: security
     - Some security features can be encoded directly into library types (for example, PEP 675 allows libraries to prevent user-controlled data from flowing into SQL queries or shell calls to avoid injection attacks)
     - The presence of types can enable downstream static analysis - for example Meta relies heavily on the Pysa taint analyzer for security, but it needs types in order to resolve method calls
@@ -103,7 +103,7 @@ One other thing to consider
   - Types help encode contracts between parts of code, and they help us work productively in unfamiliar code
 - Traditionally, individual developers and small teams didn't need this as much
   - Often the codebases were small enough to hold in our heads
-  - The benefits of dynamic typing (which is powerful!) often outweighted the benefits of static typing
+  - The benefits of dynamic typing (which is powerful!) often outweighed the benefits of static typing
 - But with the advent of widespread vibe coding, this may change
   - Even individual developers may now be facing codebases they didn't write by hand and don't understand as fully
 
@@ -114,7 +114,7 @@ Python typing has made tremendous strides in usability and adoption in the last 
 Especially with the growth in vibe coding, now is a great time to revisit assumptions about when types are useful.
 
 Now's an exciting time to explore the future of Python, and how types might or might not play a role. We have many open problems:
-- Learning how best to integrate type information and codee indexes with AI
+- Learning how best to integrate type information and code indexes with AI
 - Understanding how to teach AI to use types wisely
 - Continuing to improve the type system so that more of the dynamic features we love in Python can be understood programmatically
 

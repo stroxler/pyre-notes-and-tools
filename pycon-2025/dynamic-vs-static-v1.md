@@ -13,7 +13,7 @@ This talk is for Python developers who:
 - Want to understand common Python idioms that are difficult to type
 - Are curious about tradeoffs with static typing, and how to use it judiciously
 
-Being experienced with Python and familiar with simple type ints (for
+Being experienced with Python and familiar with simple type hints (for
 example `def foo(x: int) -> str: ...`) is helpful but you don't need to be
 an expert.
 
@@ -24,14 +24,13 @@ Have you ever tried to add types to an existing Python library or application an
 
 Static typing is a powerful lever for working with code. It provides verifiable documentation, can find bugs quickly and enable fearless (well let's be honest, somewhat less scary) refactors, and allows us to leverage powerful tools like modern IDEs to understand and navigate code.
 
-But often developers and even type thoerists approach the problem of turning untyped code into statically typed code as though it were merely a problem of adding annotations. This is often not the case, and it can be helpful to understand why.
+But often developers and even type theorists approach the problem of turning untyped code into statically typed code as though it were merely a problem of adding annotations. This is often not the case, and it can be helpful to understand why.
 
-Python was concieved as a dynamically typed language, and much of it's rich library ecosystem was written without types. And many of the powerful patterns that make dynamically typed Python useful are difficult to statically type for
-example
+Python was conceived as a dynamically typed language, and much of its rich library ecosystem was written without types. And many of the powerful patterns that make dynamically typed Python useful are difficult to statically type, for example:
 - Pervasive use of duck typing
 - Use of metaprogramming and classes with highly dynamic behavior
 - Reliance of flow-sensitive type information that type checkers cannot track
-- Using heterogenious containers in ways that the type system can't model
+- Using heterogeneous containers in ways that the type system can't model
 
 We'll explore some of these patterns, why they are hard to type and might not be worth typing, and some advice for how to get the most out of the type system without trying to force inherently dynamic code to be statically typed.
 
@@ -54,7 +53,7 @@ A lightning introduction to static type syntax, gradual typing and the `Any` typ
 
 A very short discussion of the evolution of types in the library ecosystem
 - Increasing adoption of types by widely-used libraries like numpy
-- New libraries like pydantic, typer, and httpx that are type-centric
+- New libraries like Pydantic, typer, and httpx that are type-centric
 
 A very short discussion of the role of types in tooling
 - Types at the center of IDE functionality in OOP languages (method resolution)
@@ -64,6 +63,9 @@ A very short discussion of the role of types in tooling
 
 Introduction to duck typing and how the runtime is duck-typed
 - Relationship to nominal typing and to inheritance
+- How it allows unexpected use of libraries. Examples in the wild:
+  - cupy and cuDF duck type numpy and pandas classes with GPU-accelerated versions
+  - The pytorch compiler relies on a FakeTensor that duck types Tensor for tracing
 
 Discussion of duck-typing as a programming pattern
 - Enables using libraries in unexpected ways (a familiar example: Python unit testing has always relied heavily on duck typing; this is part of how a mock works)
@@ -73,23 +75,19 @@ Discussion of duck-typing as a programming pattern
 Duck typing and the static type system
 - The initial static type system had no support
 - PEP 544 added support but there's a gap:
-  - Protcols require explicit declaration, so even if they work it's no longer just adding annotations to code
+  - Protocols require explicit declaration, so even if they work it's no longer just adding annotations to code
   - You can't declare duck-type compatibility with existing classes
-
-Examples in the wild
-- cupy and cuDF duck type numpy and pandas classes with GPU-accellerated versions
-- FakeTensor in torch dynamo duck types Tensor, not permitted
 
 ## Dynamic Pattern 2: Heterogeneous Collections (5 minutes)
 
-Idiomatic dynamically-typed Python makes wide use of built-in-data structures
+Idiomatic dynamically-typed Python makes wide use of built-in data structures
 - Common for data ingestion, consuming json APIs or configuration
 - DataFrames, which are only partially typed - type checkers don't understand the column types
 - Can be a core part of an implementation (example - maybe a tiny interpreter, or minikanren?)
 
-Statically typed python doesn't support code that relies on heterogenious containers well
+Statically typed python doesn't support code that relies on heterogeneous containers well
 - Typed dicts can help with dicts, but not sets or lists
-- Big unions are hard to work with, and even if you narrow types the narrows may not carry
+- Big unions are hard to work with, and even if you narrow types the narrowing may not persist
 - Mutable containers are invariant, and often existing logic uses them covariantly
   - You can sometimes get around this by using Sequence or Mapping, but not always
 
@@ -114,7 +112,7 @@ Class construction is another common place for highly dynamic logic
 
 ### Converting Dynamic Code
 
-For fast-changing and business-critical code where safety and great tooling support is essential, it may be worth substatially rewriting the code to get types.
+For fast-changing and business-critical code where safety and great tooling support is essential, it may be worth substantially rewriting the code to get types.
 
 Be on the lookout for easy wins:
 - Situations where refactoring to use simple types like `dataclasses` can make things clearer and play well with the type system
