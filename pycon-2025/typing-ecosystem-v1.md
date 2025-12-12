@@ -32,7 +32,7 @@ With AI-assisted programming, this trend shows signs accellerating even more bec
 The v0 doc includes a few sections I've skipped for now:
 - "Why this talk matters now"
 - "What attendees will learn"
-- "Additional notes", including differentiation
+- "Differentiation"
 
 Need to figure out if / where these kinds of blurbs should be included in the final proposal.
 
@@ -40,16 +40,18 @@ Need to figure out if / where these kinds of blurbs should be included in the fi
 
 ## Introduction (5 minutes)
 
-- Conventional wisdom in Python has been that types are mainly useful in large, long-lived codebases but not scripts, and aren't suitable for beginners. Types came with many downsides:
-  - Many Python programs can't easily be statically typed (this is still true!)
-  - Writing out types took time, annotating codebases after the fact was very difficult
-  - Often third-party libraries lacked types, so even with annotations you might not get much safety
-  - Type checkers were often slow to run, the feedback loop was not nearly as good as, for example, Java with an IDE like Intellij.
-- Recent improvements to the tooling around Python typing and library ecosystem have shifted the tradeoff. Typing might still not be right for you, but it's worth understanding some of these shifts.
+Conventional wisdom in Python has been that types are mainly useful in large, long-lived codebases but not scripts, and aren't suitable for beginners. Types came with many downsides:
+- Many Python programs can't easily be statically typed (this is still true!)
+- Writing out types took time, annotating codebases after the fact was very difficult
+- Often third-party libraries lacked types, so even with annotations you might not get much safety
+- Type checkers were often slow to run, the feedback loop was not nearly as good as, for example, Java with an IDE like Intellij.
+
+Recent improvements to the tooling around Python typing and library ecosystem have shifted the tradeoff. Typing might still not be right for you, but it's worth understanding some of these shifts.
 
 ## Shift 1: Better Type Checkers and IDEs (5 minutes)
 
-- In the past, type checking usually required running a cli tool. Needing to use a cli tool slowed iteration, and many of the early type checkers also took seconds or minutes to run on mid-size and larger codebases.
+In the past, type checking usually required running a cli tool.
+- This slowed iteration, and many of the early type checkers also took seconds or minutes to run on mid-size and larger codebases.
 - With the advent of Pyright, type checking and IDE support in Python converged, and Pyright mainstreamed the idea of lazy and incremental typing for very fast response times
 - The latest generation of type checkers (`Pyrefly`, `ty`, and `zuban`) are all
   very fast and IDE-native, much like Pyright
