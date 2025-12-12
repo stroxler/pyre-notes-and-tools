@@ -60,7 +60,7 @@ A very short discussion of the role of types in tooling
 - Types at the center of IDE functionality in OOP languages (method resolution)
 - Types as a way to increase the leverage of AI agents with fast feedback
 
-## Dynamic Pattern 1: duck typing (5 minutes)
+## Dynamic Pattern 1: Duck Typing (5 minutes)
 
 Introduction to duck typing and how the runtime is duck-typed
 - Relationship to nominal typing and to inheritance
@@ -80,7 +80,7 @@ Examples in the wild
 - cupy and cuDF duck type numpy and pandas classes with GPU-accellerated versions
 - FakeTensor in torch dynamo duck types Tensor, not permitted
 
-## Dynamic Pattern 2: Heterogeneous collections (5 minutes)
+## Dynamic Pattern 2: Heterogeneous Collections (5 minutes)
 
 Idiomatic dynamically-typed Python makes wide use of built-in-data structures
 - Common for data ingestion, consuming json APIs or configuration
@@ -96,7 +96,7 @@ Statically typed python doesn't support code that relies on heterogenious contai
 One approach that often helps, not only with typing but with application architecture, is defining a validation barrier
   - Libraries like Pydantic can help with this
 
-## Dynamic Pattern 3: Control-flow-sensitive types and dynamic class construction (5 minutes)
+## Dynamic Pattern 3: Flow-dependent Logic and Dynamic Classes (5 minutes)
 
 It's common for dynamic code to use narrows (which static type checkers do support in simple cases) in ways that exceed type checker limitations, for example:
 - narrowing multiple variables together and reusing the condition later
@@ -112,7 +112,7 @@ Class construction is another common place for highly dynamic logic
 
 ## Bridging the gap (10 minutes)
 
-### Converting dyanmically typed code
+### Converting Dynamic Code
 
 For fast-changing and business-critical code where safety and great tooling support is essential, it may be worth substatially rewriting the code to get types.
 
@@ -124,7 +124,7 @@ Be on the lookout for easy wins:
 For duck-typing, a hack that can work is to add a method that casts your duck type into
 the type you'd like to pretend it is.
 
-### Living with dynamically typed code
+### Living with Dynamic Code
 
 Often it might not be worth adding types to existing code.
 
@@ -135,7 +135,7 @@ If your code is inherently very dynamic - like data analyses making heavy use of
 In a bigger application, it can be very helpful to focus on providing types at boundaries between systems, and often data validation with libraries like Pydantic or runtime type checkers like beartype and typeguard can help.
 
 
-### Expanding the Python type system
+### Expanding Python's type system
 
 Dynamic code is sometimes just code that the existing type system doesn't understand yet.
 

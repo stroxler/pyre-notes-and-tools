@@ -28,9 +28,9 @@ With AI-assisted programming, this trend shows signs accellerating even more bec
 - Type information and type checking can be a big help to AI, reducing hallucinations and providing very fast iteration
 
 
-# Detailed Outline
+# Details
 
-## Introduction (5 minutes)
+## Introduction: Why Types Feel Different now (5 minutes)
 
 Conventional wisdom in Python has been that types are mainly useful in large, long-lived codebases but not scripts, and aren't suitable for beginners. Types came with many downsides:
 - Many Python programs can't easily be statically typed (this is still true!)
@@ -40,7 +40,7 @@ Conventional wisdom in Python has been that types are mainly useful in large, lo
 
 Recent improvements to the tooling around Python typing and library ecosystem have shifted the tradeoff. Typing might still not be right for you, but it's worth understanding some of these shifts.
 
-## Shift 1: Better Type Checkers and IDEs (5 minutes)
+## Shift 1: Faster and IDE-native Type Checkers (5 minutes)
 
 In the past, type checking usually required running a cli tool.
 - This slowed iteration, and many of the early type checkers also took seconds or minutes to run on mid-size and larger codebases.
@@ -57,7 +57,7 @@ With these fast and IDE native type checkers, you get much more than catching bu
 
 To me, this is one of the most important shifts. I remember when I first worked in Java as a longtime Pythonista in 2015, I mostly hated it but the ability to explore library APIs with autocomplete felt magical. Now we can have that in Python!
 
-## Shift 2: Typing is more tightly integrated into the library ecosystem (5 minutes)
+## Shift 2: Libraries Built Around Types (5 minutes)
 
 The Python library ecosystem used to be a major barrier to using types - even if you annotated code, often you'd have a type of `Any` as soon as you talked to a third party library (or worse yet, it would be a C extension with no stubs so you'd have to go write stubs yourself).
 
@@ -78,7 +78,7 @@ In addition, many new libraries are type-first by design, and often the types ca
   - Compared to older CLI interfaces this can be more concise and much easier to document
   - This is a great example of why type hints may now be worth using even in small scripts
 
-## Shift 3: AI-assisted Programming Accelerates these Trends (10 minutes)
+## Shift 3: AI Supercharges Typing (10 minutes)
 
 With AI, you may no longer need to write types by hand:
 - If AI is writing code, we can teach it how to use types from the start
