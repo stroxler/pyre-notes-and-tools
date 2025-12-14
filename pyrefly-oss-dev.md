@@ -5,17 +5,29 @@ https://github.com/VonHeikemen/nvim-starter/tree/xx-basic-lsp, I was
 able to make pyrefly work against our own `conformance/third-party` directory
 with this call to the native vim LSP client:
 ```
+
+-- local pyrefly_cmd = 'pyrefly-dev' -- useful if you want to pick up a dev build
+local pyrefly_cmd = 'pyrefly'
+
+local python_root_dir_markers = {
+  'pyproject.toml',
+  -- these are ugly hacks to make pyrefly work on conformance tests / pyrefly root dir
+  'pyrefly_wasm',
+  '_qualifiers_final_decorator.pyi',
+}
+
 lsp_setup({
   name = 'pyrefly',
-  cmd = {'pyrefly-dev', 'lsp'},
+  cmd = {pyrefly_cmd, 'lsp'},
   filetypes = {
     'python',
   },
   root_dir = function()
-   -- hack to make pyrefly treat conformance tests as a valid dir
-   return find_first({'_qualifiers_final_decorator.pyi'})
+   return find_first(python_root_dir_markers)
   end,
 })
+
+
 ```
 
 Note that Pyrefly doesn't need any config at all to run against (at least most
