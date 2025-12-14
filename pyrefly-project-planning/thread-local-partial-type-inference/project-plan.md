@@ -257,74 +257,50 @@ purposes. Search for all callers of `user.decompose()` in the codebase.
 
 ### 3.2 Solver Phase Changes
 
-#### 3.2.1 The Critical Challenge: Passing Binding Index to Solver
+#### 3.2.1 Obtaining the Current Binding Index
 
-The `Solve` trait (`lib/alt/traits.rs:81-89`) currently does NOT pass the
-binding index to the `solve` method:
+The `solve_name_assign` method needs access to its own `Idx<Key>` in order to
+store its raw result in `PreliminaryAnswers`. Rather than modifying the `Solve`
+trait (which would require updating ~20+ implementations), we use the `CalcStack`
+which already tracks the current calculation.
+
+**File:** `lib/alt/answers_solver.rs`
+
+Add a private helper method to `AnswersSolver`:
 
 ```rust
-pub trait Solve<Ans: LookupAnswer>: Keyed {
-    fn solve(
-        answers: &AnswersSolver<Ans>,
-        binding: &Self::Value,
-        errors: &ErrorCollector,
-    ) -> Arc<Self::Answer>;
-    // ...
+impl<'a, Ans: LookupAnswer> AnswersSolver<'a, Ans> {
+    /// Get the current `Idx<Key>` from the calculation stack.
+    ///
+    /// This relies on the invariant that when solving a `Binding::NameAssign`,
+    /// the top of the `CalcStack` is always an `AnyIdx::Key`. This invariant
+    /// is not enforced by the type system (since `AnyIdx` wraps multiple index
+    /// types), but is guaranteed by the solver's control flow.
+    ///
+    /// Panics if called when the stack is empty or the top is not an `Idx<Key>`.
+    fn current_key_idx(&self) -> Idx<Key> {
+        match self.stack().peek() {
+            Some(CalcId(_, AnyIdx::Key(idx))) => idx,
+            _ => panic!(
+                "current_key_idx called but top of CalcStack is not an Idx<Key>"
+            ),
+        }
+    }
 }
 ```
 
-However, `calculate_and_record_answer` (`lib/alt/answers_solver.rs:682-697`)
-has access to `idx`:
-
-```rust
-fn calculate_and_record_answer<K: Solve<Ans>>(
-    &self,
-    current: CalcId,
-    idx: Idx<K>,  // <-- Available here
-    calculation: &Calculation<Arc<K::Answer>, Var>,
-) -> Arc<K::Answer> {
-    let binding = self.bindings().get(idx);
-    let answer = calculation
-        .record_value(K::solve(self, binding, self.base_errors), |var, answer| {
-            // ...
-        });
-    // ...
-}
-```
-
-**Recommended approach:** Modify the `Solve` trait to accept `idx`:
-
-```rust
-pub trait Solve<Ans: LookupAnswer>: Keyed {
-    fn solve(
-        answers: &AnswersSolver<Ans>,
-        idx: Idx<Self>,  // NEW parameter
-        binding: &Self::Value,
-        errors: &ErrorCollector,
-    ) -> Arc<Self::Answer>;
-    // ...
-}
-```
-
-This requires updating all ~20+ implementations of `Solve`. Most implementations
-will simply ignore the new `idx` parameter. Only `impl Solve for Key` will use
-it, passing it to `solve_binding`.
+This encapsulates the low-level stack manipulation in `answers_solver.rs`,
+keeping the implementation detail private.
 
 #### 3.2.2 Modify `solve_binding`
 
 **File:** `lib/alt/solve.rs:1493-1509`
 
-```rust
-// Current signature:
-pub fn solve_binding(&self, binding: &Binding, errors: &ErrorCollector) -> Arc<TypeInfo>
+The signature of `solve_binding` remains unchanged. Instead, when handling
+`NameAssign`, we call the helper to get the current index:
 
-// Proposed signature:
-pub fn solve_binding(
-    &self,
-    idx: Idx<Key>,  // NEW
-    binding: &Binding,
-    errors: &ErrorCollector,
-) -> Arc<TypeInfo> {
+```rust
+pub fn solve_binding(&self, binding: &Binding, errors: &ErrorCollector) -> Arc<TypeInfo> {
     // Special case for forward
     if let Binding::Forward(fwd) = binding {
         return self.get_idx(*fwd);
@@ -332,6 +308,7 @@ pub fn solve_binding(
 
     // Special handling for NameAssign
     if let Binding::NameAssign { first_use, .. } = binding {
+        let idx = self.current_key_idx();  // Get idx from CalcStack
         return self.solve_name_assign(idx, binding, *first_use, errors);
     }
 
@@ -628,6 +605,8 @@ Thread-local storage is keyed by `ModuleInfo`, so chains work across modules.
    - This is a no-op—the field exists but isn't used yet
 
 2. Add helper methods to `AnswersSolver`:
+   - `current_key_idx` (private helper in `answers_solver.rs` to get `Idx<Key>`
+     from `CalcStack`)
    - `has_partial_vars`
    - `force_partial_vars_in_preliminary`
    - `commit_preliminary_to_global`
@@ -648,29 +627,24 @@ Thread-local storage is keyed by `ModuleInfo`, so chains work across modules.
 2. Add debug logging to verify correct first-use detection
 3. Run tests, verify logging shows correct patterns
 
-### Phase 3: Modify Solve Trait (Feature-Flagged)
-
-**Goal:** Enable passing index to solver.
-
-1. Modify `Solve` trait to accept `idx: Idx<Self>` parameter
-2. Update all ~20+ implementations (most will ignore the new parameter)
-3. Modify `calculate_and_record_answer` to pass `idx` to `K::solve`
-4. Modify `solve_binding` to accept `idx`
-5. Add feature flag for new solver path:
-   ```rust
-   #[cfg(feature = "thread_local_partial")]
-   ```
-
-### Phase 4: Enable New Solver Path
+### Phase 3: Enable New Solver Path (Feature-Flagged)
 
 **Goal:** Switch to thread-local solver behavior.
 
 1. Implement `solve_name_assign` with thread-local storage
-2. Modify `get_idx` integration with preliminary storage
-3. Run all tests with flag enabled, fix any regressions
-4. Remove feature flag once stable
+   - Uses `current_key_idx()` to get the binding index from `CalcStack`
+   - Stores raw result in `PreliminaryAnswers`
+   - Chases first-use chain via `get_idx`
+   - Forces and commits when chain ends
+2. Modify `solve_binding` to dispatch to `solve_name_assign` for `NameAssign`
+3. Add feature flag for new solver path:
+   ```rust
+   #[cfg(feature = "thread_local_partial")]
+   ```
+4. Run all tests with flag enabled, fix any regressions
+5. Remove feature flag once stable
 
-### Phase 5: Remove Old Infrastructure
+### Phase 4: Remove Old Infrastructure
 
 **Goal:** Delete obsolete code.
 
@@ -682,7 +656,7 @@ Thread-local storage is keyed by `ModuleInfo`, so chains work across modules.
 6. Remove `detect_first_use` and `record_first_use`
 7. Simplify `Usage` enum (remove `first_uses_of` set) after verifying no other uses
 
-### Phase 6: Testing and Validation
+### Phase 5: Testing and Validation
 
 1. Run existing partial type inference tests
 2. Add new tests for:
