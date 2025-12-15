@@ -1,5 +1,7 @@
 # Deferred BoundName Implementation Plan
 
+**Prerequisite**: This plan is based on the codebase with D88413287 (`adfe44adfc`) applied, which simplifies usage tracking by removing `Usage::narrowing_from()`. The simplified `Usage` flow makes the deferred binding implementation cleaner.
+
 ## Overview
 
 This document provides a step-by-step implementation plan for deferring `BoundName` binding creation in Pyrefly. This change enables partial type inference to work correctly in loops where variables are not reassigned.
@@ -17,11 +19,72 @@ for i in range(5):
 
 ---
 
+## Implementation Notes
+
+This section documents how the plan was actually implemented.
+
+**Phases 0-2**: Implemented as separate commits.
+- Phase 0: Added 4 failing test cases to `delayed_inference.rs` with `bug = "..."` tags
+- Phase 1: Added `DeferredBoundName`, `UsageContext` structs and `deferred_bound_names` field
+- Phase 2: Added `lookup_name_without_first_use` method
+
+**Phases 3-5**: Implemented together in a single commit. These phases are interdependent:
+- Phase 3 (defer binding creation) breaks all tests until Phase 4 is also implemented
+- Phase 4's `finalize_bound_name` needed Phase 5's logic to handle secondary reads correctly
+
+Key implementation details that differed from the original plan:
+1. `follow_to_partial_type` returns full partial type info `(default_idx, Option<(pt_idx, unpinned_idx, FirstUse)>)` rather than just `(idx, Option<pt_idx>)`. This allows `finalize_bound_name` to handle all `FirstUse` states.
+2. The `FirstUse::UsedBy(other_idx)` case from Phase 5 was essential for handling secondary reads of the same name in the same binding context (e.g., `g(x, x)`).
+3. A `defer_bound_name` helper method was added to `BindingsBuilder` to encapsulate the deferral logic.
+
+**Future cleanup**: Once the implementation is stable, `lookup_name_without_first_use` can be renamed to `lookup_name` and the original `lookup_name`, `detect_first_use`, and `record_first_use` can be removed.
+
+---
+
+## Phase 0: Write Failing Tests First
+
+Before making any code changes, write tests that demonstrate the current broken behavior.
+This validates your understanding and gives you a clear success criterion.
+
+### Step 0.1: Find existing partial type tests
+
+Look for existing tests related to partial types to understand the test patterns:
+```bash
+# Find test files
+ls pyrefly/lib/test/
+
+# Search for existing partial type tests
+grep -r "partial" pyrefly/lib/test/ --include="*.md" --include="*.rs"
+grep -r "list\[@" pyrefly/lib/test/ --include="*.md" --include="*.rs"
+```
+
+Pyrefly uses markdown-based end-to-end tests in addition to Rust unit tests.
+Check `pyrefly/lib/test/` for the appropriate location.
+
+### Step 0.2: Write the failing test
+
+Add a test that should FAIL before the fix and PASS after:
+
+```python
+# Test: partial type inference in loop (currently broken)
+x = []
+for i in range(5):
+    x.append(i)
+reveal_type(x)  # Expected: list[int], Currently: list[Unknown] or similar
+```
+
+Run to confirm it fails:
+```bash
+buck test pyrefly:pyrefly_library -- <test_name>
+```
+
+---
+
 ## Phase 1: Data Structures
 
 ### Step 1.1: Define `DeferredBoundName` struct
 
-**Location**: `pyrefly/lib/binding/bindings.rs` (add near line 180, before `BindingsBuilder`)
+**Location**: `pyrefly/lib/binding/bindings.rs` (add near line 185, before `BindingsBuilder` which starts at line 189)
 
 ```rust
 /// Information needed to create a BoundName binding after AST traversal.
@@ -33,25 +96,34 @@ for i in range(5):
 struct DeferredBoundName {
     /// The reserved Idx for the Key::BoundName we will create
     bound_name_idx: Idx<Key>,
-    /// The flow key that the lookup resolved to (may be a phi that forwards elsewhere)
-    flow_target_idx: Idx<Key>,
+    /// The result of the name lookup (may be a phi that forwards elsewhere)
+    lookup_result_idx: Idx<Key>,
+    /// Information about the usage context where the lookup occurred
+    used_in: UsageContext,
+}
+
+/// Information about the usage context where a name lookup occurred.
+///
+/// This captures the relevant properties of `Usage` needed for deferred
+/// first-use detection.
+#[derive(Debug)]
+struct UsageContext {
     /// The current binding idx at the time of lookup (for first-use tracking)
     current_binding_idx: Option<Idx<Key>>,
-    /// Whether this lookup was in a narrowing context (does not pin)
-    is_narrowing: bool,
-    /// Whether this lookup was in a static type context (does not pin)
-    is_static_type: bool,
+    /// Whether this lookup can pin a partial type's first use.
+    /// True for normal usage (Usage::CurrentIdx), false for narrowing or static type contexts.
+    may_pin_partial_type: bool,
 }
 ```
 
 **Why this structure**:
 - We store the essential information from `Usage` rather than `Usage` itself (which doesn't derive `Clone`)
-- The `flow_target_idx` is what `lookup_name` returned - we'll follow this chain at finalization
-- We need the usage context to correctly handle first-use detection later
+- The `lookup_result_idx` is what `lookup_name` returned - we'll follow this chain at finalization
+- `UsageContext` groups together the properties of where the lookup occurred
 
 ### Step 1.2: Add field to `BindingsBuilder`
 
-**Location**: `pyrefly/lib/binding/bindings.rs`, in the `BindingsBuilder` struct (around line 184-200)
+**Location**: `pyrefly/lib/binding/bindings.rs`, in the `BindingsBuilder` struct (lines 189-207)
 
 Add this field:
 ```rust
@@ -65,7 +137,7 @@ pub struct BindingsBuilder<'a> {
 }
 ```
 
-Update initialization in `Bindings::new()` (around line 388):
+Update initialization in `Bindings::new()` (around line 400, look for the `BindingsBuilder` initialization):
 ```rust
 let mut builder = BindingsBuilder {
     // ... existing field initializations ...
@@ -84,7 +156,7 @@ The key insight is that we need to split `lookup_name` into two parts:
 
 ### Step 2.1: Create `lookup_name_without_first_use`
 
-**Location**: `pyrefly/lib/binding/bindings.rs` (around line 864-896)
+**Location**: `pyrefly/lib/binding/bindings.rs` (add near `lookup_name` which is at lines 954-986)
 
 Add a new method that performs lookup without first-use detection:
 
@@ -116,100 +188,129 @@ fn lookup_name_without_first_use(&mut self, name: Hashed<&Name>) -> NameLookupRe
 }
 ```
 
-**Why**: The existing `lookup_name` calls `detect_first_use` and `record_first_use`. We need a version that skips this for deferred bindings.
+**Why**: The existing `lookup_name` (lines 954-986) calls `detect_first_use` (lines 1003-1043) and `record_first_use`. We need a version that skips this for deferred bindings.
+
+**Future cleanup**: Once all callers are migrated to deferred binding creation and the original `lookup_name` is no longer needed, rename `lookup_name_without_first_use` to `lookup_name` and remove the old function along with `detect_first_use` and `record_first_use`.
 
 ---
 
 ## Phase 3: Modify `ensure_name_impl` to Defer Binding Creation
 
-**Location**: `pyrefly/lib/binding/expr.rs` (lines 302-378)
+**Location**: `pyrefly/lib/binding/expr.rs` (lines 294-370)
+
+**Important**: The `Usage` enum is defined at lines 72-100 in this same file. After D88413287, the `Usage` enum is simplified:
+- `CurrentIdx(Idx<Key>, SmallSet<Idx<Key>>)` - Normal usage for creating bindings
+- `Narrowing(Option<Idx<Key>>)` - Usage in narrowing contexts (doesn't pin)
+- `StaticTypeInformation` - Static type contexts (doesn't pin)
+
+The `narrowing_from()` method was removed - usage now flows through unchanged. The `current_idx()` method returns `Option<Idx<Key>>` for all variants.
 
 ### Step 3.1: Update `ensure_name_impl` for normal flow lookups
 
-The current code (simplified):
+The current code (lines 312-336):
 ```rust
-fn ensure_name_impl(&mut self, name: &Identifier, usage: &mut Usage, ...) -> Idx<Key> {
-    let key = Key::BoundName(ShortIdentifier::new(name));
-    // ... empty name check ...
-    let lookup_result = self.lookup_name(Hashed::new(&name.id), usage);
-    match lookup_result {
-        NameLookupResult::Found { idx: value, .. } => {
-            self.insert_binding(key, Binding::Forward(value))  // EAGER - change this
+let used_in_static_type = matches!(usage, Usage::StaticTypeInformation);
+let lookup_result =
+    if used_in_static_type && let Some((tparams_collector, tparam_id)) = tparams_lookup {
+        self.intercept_lookup(tparams_collector, tparam_id)
+    } else {
+        self.lookup_name(Hashed::new(&name.id), usage)
+    };
+match lookup_result {
+    NameLookupResult::Found { idx: value, initialized: is_initialized } => {
+        if !used_in_static_type
+            && !self.module_info.path().is_interface()
+            && let Some(error_message) = is_initialized.as_error_message(&name.id)
+        {
+            self.error(...);
         }
-        NameLookupResult::NotFound => { /* error handling */ }
+        self.insert_binding(key, Binding::Forward(value))  // EAGER - change this
+    }
+    NameLookupResult::NotFound => { /* error handling */ }
+}
+```
+
+**New approach** - keep existing structure, just change the lookup and binding creation:
+```rust
+let used_in_static_type = matches!(usage, Usage::StaticTypeInformation);
+let may_pin_partial_type = matches!(usage, Usage::CurrentIdx(_, _));
+
+let lookup_result =
+    if used_in_static_type && let Some((tparams_collector, tparam_id)) = tparams_lookup {
+        self.intercept_lookup(tparams_collector, tparam_id)  // Keep synchronous
+    } else {
+        self.lookup_name_without_first_use(Hashed::new(&name.id))  // NEW: no first-use detection
+    };
+
+match lookup_result {
+    NameLookupResult::Found { idx: lookup_result_idx, initialized: is_initialized } => {
+        // Uninitialized local errors still reported during traversal
+        if !used_in_static_type
+            && !self.module_info.path().is_interface()
+            && let Some(error_message) = is_initialized.as_error_message(&name.id)
+        {
+            self.error(name.range, ErrorInfo::Kind(ErrorKind::UnboundName), error_message);
+        }
+
+        // For LegacyTParamCollector path (static type context), create binding immediately
+        // since it doesn't participate in partial type pinning anyway
+        if used_in_static_type {
+            return self.insert_binding(key, Binding::Forward(lookup_result_idx));
+        }
+
+        // Normal case: defer the binding creation
+        self.defer_bound_name(
+            key,
+            lookup_result_idx,
+            usage.current_idx(),
+            may_pin_partial_type,
+        )
+    }
+    NameLookupResult::NotFound => {
+        // Error case - create binding immediately (no deferral needed)
+        // ...existing not-found handling unchanged...
     }
 }
 ```
 
-**New approach**:
+### Step 3.2: Add `defer_bound_name` helper method
+
+**Location**: `pyrefly/lib/binding/bindings.rs`
+
 ```rust
-fn ensure_name_impl(&mut self, name: &Identifier, usage: &mut Usage, ...) -> Idx<Key> {
-    let key = Key::BoundName(ShortIdentifier::new(name));
-
-    if name.is_empty() {
-        // Error recovery case - keep immediate binding
-        return self.insert_binding_overwrite(key, Binding::Type(Type::any_error()));
-    }
-
-    let used_in_static_type = matches!(usage, Usage::StaticTypeInformation);
-    let is_narrowing = matches!(usage, Usage::Narrowing(_));
-
-    // Handle legacy type parameter lookups (keep synchronous for now)
-    if used_in_static_type && let Some((tparams_collector, tparam_id)) = tparams_lookup {
-        let lookup_result = self.intercept_lookup(tparams_collector, tparam_id);
-        return match lookup_result {
-            NameLookupResult::Found { idx: value, initialized } => {
-                // Check uninitialized error
-                // ...existing error handling...
-                self.insert_binding(key, Binding::Forward(value))
-            }
-            NameLookupResult::NotFound => {
-                // ...existing not-found handling...
-            }
-        };
-    }
-
-    // Normal case: defer the binding creation
-    let lookup_result = self.lookup_name_without_first_use(Hashed::new(&name.id));
-
-    match lookup_result {
-        NameLookupResult::Found { idx: flow_target_idx, initialized } => {
-            // Check uninitialized error (still needs to happen during traversal)
-            if !used_in_static_type
-                && !self.module_info.path().is_interface()
-                && let Some(error_message) = initialized.as_error_message(&name.id)
-            {
-                self.error(name.range, ErrorInfo::Kind(ErrorKind::UnboundName), error_message);
-            }
-
-            // Reserve an idx for the BoundName without creating the binding
-            let bound_name_idx = self.idx_for_promise(key);
-
-            // Record for deferred processing
-            self.deferred_bound_names.push(DeferredBoundName {
-                bound_name_idx,
-                flow_target_idx,
-                current_binding_idx: usage.current_idx(),
-                is_narrowing,
-                is_static_type: used_in_static_type,
-            });
-
-            bound_name_idx
-        }
-        NameLookupResult::NotFound => {
-            // Error case - create binding immediately (no deferral needed)
-            // ...existing not-found handling...
-        }
-    }
+/// Defer creation of a BoundName binding until after AST traversal.
+///
+/// This reserves an index for the binding and stores the lookup result
+/// along with usage context. The actual binding is created later by
+/// `process_deferred_bound_names` when all phi nodes are populated.
+pub fn defer_bound_name(
+    &mut self,
+    key: Key,
+    lookup_result_idx: Idx<Key>,
+    current_binding_idx: Option<Idx<Key>>,
+    may_pin_partial_type: bool,
+) -> Idx<Key> {
+    let bound_name_idx = self.idx_for_promise(key);
+    self.deferred_bound_names.push(DeferredBoundName {
+        bound_name_idx,
+        lookup_result_idx,
+        used_in: UsageContext {
+            current_binding_idx,
+            may_pin_partial_type,
+        },
+    });
+    bound_name_idx
 }
 ```
 
 **Key changes**:
-1. Use `idx_for_promise` to reserve an index without creating the binding
-2. Store the lookup result in `deferred_bound_names`
-3. Return the reserved index (callers don't need to change)
-4. Keep `LegacyTParamCollector` handling synchronous to avoid complexity
-5. Keep error cases (`NotFound`) synchronous since they don't benefit from deferral
+1. Change `lookup_name` to `lookup_name_without_first_use` in the else branch
+2. Keep the existing `if/else` structure for lookup - don't restructure the control flow
+3. In the `Found` branch, check `used_in_static_type` to decide immediate vs deferred binding
+4. Use `idx_for_promise` to reserve an index for deferred bindings
+5. Store the lookup result in `deferred_bound_names`
+6. Return the reserved index (callers don't need to change)
+7. Keep error cases (`NotFound`) synchronous since they don't benefit from deferral
 
 ---
 
@@ -236,32 +337,65 @@ fn process_deferred_bound_names(&mut self) {
 }
 
 /// Finalize a single deferred BoundName binding.
+///
+/// This handles all the first-use logic that was previously done eagerly
+/// in `lookup_name`. Now that phi nodes are populated, we can correctly
+/// follow Forward chains and detect first-use opportunities.
 fn finalize_bound_name(&mut self, deferred: DeferredBoundName) {
-    // Follow Forward chains to find the actual binding
-    let (final_idx, partial_type_idx) = self.follow_to_partial_type(deferred.flow_target_idx);
+    // Follow Forward chains to find any partial type
+    let (default_idx, partial_type_info) =
+        self.follow_to_partial_type(deferred.lookup_result_idx);
 
-    // Determine if this is a first-use opportunity
-    let should_record_first_use = partial_type_idx.is_some()
-        && !deferred.is_narrowing
-        && !deferred.is_static_type;
-
-    if let Some(pt_idx) = partial_type_idx {
-        if should_record_first_use {
-            // This is a first-use! Update the CompletedPartialType
-            self.mark_first_use(pt_idx, deferred.bound_name_idx);
-        } else if deferred.is_narrowing || deferred.is_static_type {
-            // Non-pinning context: mark as DoesNotPin
+    if let Some((pt_idx, unpinned_idx, first_use)) = partial_type_info {
+        if !deferred.used_in.may_pin_partial_type {
+            // Non-pinning context
             self.mark_does_not_pin(pt_idx);
+            // Forward to the pinned version (not unpinned)
+            self.insert_binding_idx(deferred.bound_name_idx, Binding::Forward(pt_idx));
+            return;
+        }
+
+        // Handle based on current first-use state
+        match first_use {
+            FirstUse::Undetermined => {
+                // We're the first! Claim it.
+                if let Some(current_idx) = deferred.used_in.current_binding_idx {
+                    self.mark_first_use(pt_idx, current_idx);
+                }
+                self.insert_binding_idx(deferred.bound_name_idx, Binding::Forward(unpinned_idx));
+                return;
+            }
+            FirstUse::UsedBy(other_idx) => {
+                // Already pinned - check if same binding context
+                let same_context = deferred.used_in.current_binding_idx == Some(other_idx);
+                if same_context {
+                    // Secondary read in same first-use context - use unpinned
+                    self.insert_binding_idx(deferred.bound_name_idx, Binding::Forward(unpinned_idx));
+                } else {
+                    // Different binding - use pinned version
+                    self.insert_binding_idx(deferred.bound_name_idx, Binding::Forward(pt_idx));
+                }
+                return;
+            }
+            FirstUse::DoesNotPin => {
+                // Forward to pinned version
+                self.insert_binding_idx(deferred.bound_name_idx, Binding::Forward(pt_idx));
+                return;
+            }
         }
     }
 
-    // Create the actual binding
-    self.insert_binding_idx(deferred.bound_name_idx, Binding::Forward(final_idx));
+    // Default: forward to whatever we found
+    self.insert_binding_idx(deferred.bound_name_idx, Binding::Forward(default_idx));
 }
 
-/// Follow Forward chains to find a CompletedPartialType with Undetermined first-use.
-/// Returns (idx_to_forward_to, Some(partial_type_idx)) if found, or (original_idx, None).
-fn follow_to_partial_type(&self, start_idx: Idx<Key>) -> (Idx<Key>, Option<Idx<Key>>) {
+/// Follow Forward chains to find a CompletedPartialType.
+/// Returns (idx_to_forward_to, Some((partial_type_idx, unpinned_idx, first_use_state)))
+/// if a CompletedPartialType is found, or (original_idx, None) otherwise.
+fn follow_to_partial_type(
+    &self,
+    start_idx: Idx<Key>,
+) -> (Idx<Key>, Option<(Idx<Key>, Idx<Key>, FirstUse)>) {
     let mut current = start_idx;
     let mut seen = SmallSet::new();
 
@@ -276,17 +410,9 @@ fn follow_to_partial_type(&self, start_idx: Idx<Key>) -> (Idx<Key>, Option<Idx<K
             Some(Binding::Forward(target)) => {
                 current = *target;
             }
-            Some(Binding::CompletedPartialType(unpinned_idx, FirstUse::Undetermined)) => {
-                // Found it! Return the unpinned idx for inference
-                return (*unpinned_idx, Some(current));
-            }
-            Some(Binding::CompletedPartialType(_, FirstUse::UsedBy(_))) => {
-                // Already pinned by something else
-                return (current, None);
-            }
-            Some(Binding::CompletedPartialType(_, FirstUse::DoesNotPin)) => {
-                // Already marked as non-pinning
-                return (current, None);
+            Some(Binding::CompletedPartialType(unpinned_idx, first_use)) => {
+                // Return all the info about this partial type
+                return (*unpinned_idx, Some((current, *unpinned_idx, first_use.clone())));
             }
             _ => {
                 // Not a forward, not a partial type - done
@@ -319,9 +445,14 @@ fn mark_does_not_pin(&mut self, partial_type_idx: Idx<Key>) {
 
 ### Step 4.2: Call `process_deferred_bound_names` in `Bindings::new`
 
-**Location**: `pyrefly/lib/binding/bindings.rs`, in `Bindings::new()` (around line 413)
+**Location**: `pyrefly/lib/binding/bindings.rs`, in `Bindings::new()` (lines 414-510)
 
-Add the call after AST traversal but before export processing:
+The key locations within `Bindings::new()`:
+- Line 454: `builder.stmts(x.body, &NestingContext::toplevel())` - AST traversal
+- Line 455: `assert_eq!(builder.scopes.loop_depth(), 0)` - loop depth check
+- Line 468: `builder.scopes.finish()` - scope finalization
+
+Add the call after the loop_depth assertion (line 455), before the `__all__` validation:
 
 ```rust
 pub fn new(...) -> Self {
@@ -347,127 +478,104 @@ pub fn new(...) -> Self {
 
 ## Phase 5: Handle Multiple First-Uses (Compound Bindings)
 
+**Note**: This logic is integrated into the `finalize_bound_name` function shown in Phase 4.
+
 The original proposal mentions a determinism concern with compound bindings like:
 ```python
 x = []
 x.append(1) if len(x) == 0 else (w := x.append("foo"))
 ```
 
-For V0, we take a conservative approach: if the same `CompletedPartialType` could be pinned by multiple bindings, disable first-use inference.
+The key insight is handling the `FirstUse::UsedBy(other_idx)` case - when a partial type has already been claimed by a previous binding, we need to check if we're in the same binding context (a "secondary read") or a different one.
 
-### Step 5.1: Track potential first-uses before committing
+### Secondary Read Detection
 
-Update `finalize_bound_name` to check for already-pinned state:
+In `finalize_bound_name`, the `FirstUse::UsedBy(other_idx)` case handles this:
 
 ```rust
-fn finalize_bound_name(&mut self, deferred: DeferredBoundName) {
-    let (final_idx, partial_type_idx) = self.follow_to_partial_type(deferred.flow_target_idx);
-
-    if let Some(pt_idx) = partial_type_idx {
-        if deferred.is_narrowing || deferred.is_static_type {
-            // Non-pinning context
-            self.mark_does_not_pin(pt_idx);
-            // Forward to the pinned version (not unpinned)
-            self.insert_binding_idx(deferred.bound_name_idx, Binding::Forward(pt_idx));
-            return;
-        }
-
-        // Check if already used by something else
-        if let Some(Binding::CompletedPartialType(unpinned, first_use)) =
-            self.table.types.1.get(pt_idx)
-        {
-            match first_use {
-                FirstUse::Undetermined => {
-                    // We're the first! Claim it.
-                    self.mark_first_use(pt_idx, deferred.bound_name_idx);
-                    self.insert_binding_idx(deferred.bound_name_idx, Binding::Forward(*unpinned));
-                    return;
-                }
-                FirstUse::UsedBy(other_idx) => {
-                    // Already pinned - check if same binding context
-                    let same_context = deferred.current_binding_idx == Some(*other_idx);
-                    if same_context {
-                        // Secondary read in same first-use context - use unpinned
-                        self.insert_binding_idx(deferred.bound_name_idx, Binding::Forward(*unpinned));
-                    } else {
-                        // Different binding - use pinned version
-                        self.insert_binding_idx(deferred.bound_name_idx, Binding::Forward(pt_idx));
-                    }
-                    return;
-                }
-                FirstUse::DoesNotPin => {
-                    // Forward to pinned version
-                    self.insert_binding_idx(deferred.bound_name_idx, Binding::Forward(pt_idx));
-                    return;
-                }
-            }
-        }
+FirstUse::UsedBy(other_idx) => {
+    // Already pinned - check if same binding context
+    let same_context = deferred.used_in.current_binding_idx == Some(other_idx);
+    if same_context {
+        // Secondary read in same first-use context - use unpinned
+        self.insert_binding_idx(deferred.bound_name_idx, Binding::Forward(unpinned_idx));
+    } else {
+        // Different binding - use pinned version
+        self.insert_binding_idx(deferred.bound_name_idx, Binding::Forward(pt_idx));
     }
-
-    // Default: forward to whatever we found
-    self.insert_binding_idx(deferred.bound_name_idx, Binding::Forward(final_idx));
+    return;
 }
 ```
+
+This is essential for tests like `test_first_use_reads_name_twice` where expressions like `g(x, x)` have multiple reads of the same name. The second read should forward to the unpinned type, not the pinned one.
 
 ---
 
 ## Phase 6: Testing
 
-### Step 6.1: Write a failing test first
+**Note**: This phase should actually be done FIRST (see Phase 0). The tests here are for reference.
 
-**Location**: Find the appropriate test file in `pyrefly/lib/test/`
+### Step 6.1: Test file locations
 
-Add this test BEFORE making changes to verify the current behavior:
+Pyrefly uses multiple test formats:
+- Markdown-based end-to-end tests in `pyrefly/lib/test/`
+- Rust unit tests within the source files
+- Conformance tests in `conformance/`
 
-```rust
-#[test]
-fn test_partial_type_inference_in_loop() {
-    // This test should FAIL before the fix and PASS after
-    let code = r#"
+For this feature, look for existing partial type tests:
+```bash
+# Find partial type related tests
+grep -r "partial" pyrefly/lib/test/ --include="*.md"
+grep -r "@_" pyrefly/lib/test/ --include="*.md"
+```
+
+### Step 6.2: Test cases to add
+
+These test cases can be added as markdown tests or Rust tests depending on the test infrastructure:
+
+**Core case - partial type in loop (the main bug)**:
+```python
 x = []
 for i in range(5):
     x.append(i)
-reveal_type(x)  # Should be list[int]
-"#;
-    // Assert that x is inferred as list[int], not list[Unknown]
-}
+reveal_type(x)  # Expected: list[int]
 ```
 
-### Step 6.2: Additional test cases
-
-```rust
-#[test]
-fn test_partial_type_no_reassignment_in_loop() {
-    // x is read in loop but not reassigned - should work
-    let code = r#"
+**Secondary read in loop**:
+```python
 x = []
 for i in range(5):
     x.append(i)
     y = len(x)  # x is used but not reassigned
-"#;
-}
+reveal_type(x)  # Expected: list[int]
+```
 
-#[test]
-fn test_partial_type_with_reassignment_in_loop() {
-    // x IS reassigned in loop - inference should still work before loop
-    let code = r#"
+**First use before loop, reassignment in loop**:
+```python
 x = []
 x.append(1)  # First use BEFORE the loop
 for i in range(5):
     x = [i]  # Reassignment
-"#;
-}
+reveal_type(x)  # Expected: list[int] (pinned before loop)
+```
 
-#[test]
-fn test_partial_type_nested_loops() {
-    let code = r#"
+**Nested loops**:
+```python
 x = []
 for i in range(5):
     for j in range(3):
         x.append(i + j)
-reveal_type(x)  # Should be list[int]
-"#;
-}
+reveal_type(x)  # Expected: list[int]
+```
+
+**While loop**:
+```python
+x = []
+i = 0
+while i < 5:
+    x.append(i)
+    i += 1
+reveal_type(x)  # Expected: list[int]
 ```
 
 ### Step 6.3: Run tests incrementally
@@ -484,15 +592,42 @@ buck test pyrefly:pyrefly_library -- test_partial_type
 
 ## Implementation Checklist
 
-- [ ] **Phase 1**: Add `DeferredBoundName` struct and `deferred_bound_names` field to `BindingsBuilder`
-- [ ] **Phase 2**: Add `lookup_name_without_first_use` method
-- [ ] **Phase 3**: Update `ensure_name_impl` to defer binding creation
-- [ ] **Phase 4**: Implement `process_deferred_bound_names` and related helper methods
-- [ ] **Phase 4**: Call `process_deferred_bound_names` in `Bindings::new`
-- [ ] **Phase 5**: Handle already-pinned cases correctly
-- [ ] **Phase 6**: Write and verify tests
+- [x] **Phase 0**: Write failing tests first to confirm broken behavior
+- [x] **Phase 1**: Add `DeferredBoundName` struct and `deferred_bound_names` field to `BindingsBuilder`
+- [x] **Phase 2**: Add `lookup_name_without_first_use` method
+- [x] **Phase 3**: Update `ensure_name_impl` to defer binding creation (includes `defer_bound_name` helper)
+- [x] **Phase 4**: Implement `process_deferred_bound_names` and related helper methods
+- [x] **Phase 4**: Call `process_deferred_bound_names` in `Bindings::new` (after line 455, before `__all__` validation)
+- [x] **Phase 5**: Handle already-pinned cases correctly (integrated into `finalize_bound_name`)
+- [x] **Phase 6**: Verify tests now pass (all 3118 tests pass)
 - [ ] Run `arc autocargo` if you modified any Buck files
 - [ ] Run `./test.py` to verify all tests pass
+- [ ] Future cleanup: Remove old `lookup_name`, `detect_first_use`, `record_first_use`
+
+---
+
+## Verified Code Locations (as of December 2024, after D88413287 and Phase 1)
+
+These locations were verified against the codebase with D88413287 applied and Phase 1 complete:
+
+| Item | File | Lines | Notes |
+|------|------|-------|-------|
+| `DeferredBoundName` struct | `binding/bindings.rs` | 189-202 | ✅ Phase 1 complete |
+| `UsageContext` struct | `binding/bindings.rs` | 204-215 | ✅ Phase 1 complete |
+| `BindingsBuilder` struct | `binding/bindings.rs` | 217-237 | ✅ `deferred_bound_names` field added |
+| `Bindings::new()` | `binding/bindings.rs` | 414-510 | Main constructor |
+| AST traversal call | `binding/bindings.rs` | 454 | `builder.stmts(x.body, ...)` |
+| loop_depth assertion | `binding/bindings.rs` | 455 | Insert `process_deferred_bound_names` after this |
+| Scope finalization | `binding/bindings.rs` | 468 | `builder.scopes.finish()` |
+| `lookup_name` | `binding/bindings.rs` | 954-986 | Add `lookup_name_without_first_use` nearby |
+| `detect_first_use` | `binding/bindings.rs` | 1003-1043 | Reference for first-use logic |
+| `record_first_use` | `binding/bindings.rs` | 1046-1061 | Reference for recording first-use |
+| `idx_for_promise` | `binding/bindings.rs` | 653-660 | Existing pattern to follow |
+| `ensure_name_impl` | `binding/expr.rs` | 294-370 | Main function to modify |
+| `Usage` enum | `binding/expr.rs` | 72-100 | Simplified in D88413287 |
+| `setup_loop` | `binding/scope.rs` | 2676 | Loop phi creation |
+| `insert_phi_keys` | `binding/scope.rs` | 2640 | How phis are reserved |
+| `merge_idxs` | `binding/scope.rs` | 2401 | How phis are filled in |
 
 ---
 
@@ -518,18 +653,24 @@ The `follow_to_partial_type` function includes cycle detection. This shouldn't b
 
 We process deferred bindings in insertion order (the order lookups occurred during traversal). This preserves determinism since AST traversal is deterministic.
 
+**TODO**: Consider revisiting whether TextRange order would be more predictable. In most cases insertion order and TextRange order will be the same, but there may be edge cases where they differ (e.g., complex expressions with multiple name lookups). The architectural change should work first before fine-tuning the ordering.
+
 ---
 
 ## Architecture Notes
 
 ### Why Not Clone `Usage`?
 
-The `Usage` enum contains `SmallSet<Idx<Key>>` which is clonable, but the enum itself doesn't derive `Clone`. Rather than adding `Clone`, we extract the essential information:
-- `current_idx()` → stored as `Option<Idx<Key>>`
-- Is it narrowing? → stored as `bool`
-- Is it static type? → stored as `bool`
+The `Usage` enum contains `SmallSet<Idx<Key>>` which is clonable, but the enum itself doesn't derive `Clone`. Rather than adding `Clone`, we extract the essential information into `UsageContext`:
+- `current_idx()` → stored as `current_binding_idx: Option<Idx<Key>>`
+- Can it pin? → stored as `may_pin_partial_type: bool`
 
-This is cleaner and makes the deferred state explicit.
+Grouping these in `UsageContext` makes it clear they both describe properties of the usage context where the lookup occurred.
+
+**Note on D88413287 simplification**: The `narrowing_from()` method was removed. The `Usage` now flows through expressions unchanged - narrowing contexts just pass the same usage through. This simplifies our implementation because:
+1. We don't need to track complex narrowing inheritance
+2. The `may_pin_partial_type` flag is simply `matches!(usage, Usage::CurrentIdx(_, _))`
+3. The `current_idx()` method works uniformly across all variants
 
 ### Why Defer All Flow Lookups?
 
