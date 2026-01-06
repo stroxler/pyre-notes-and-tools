@@ -295,6 +295,59 @@ Binding::PartialTypeWithUpstreamsCompleted(raw_idx, first_used_by) => {
 
 This should work fine with an empty list (the loop just does nothing).
 
+### Step 2.3: Update `get_original_binding` in `bindings.rs`
+
+**Location**: `lib/binding/bindings.rs`, in `get_original_binding` method
+
+The narrowing logic uses `get_original_binding` to follow through wrapper bindings to find the original definition. Since we now always create `PartialTypeWithUpstreamsCompleted`, we need to add it to the list of bindings that should be followed through.
+
+Find the pattern match in `get_original_binding` that looks like:
+```rust
+while let Some(
+    Binding::Forward(fwd_idx)
+    | Binding::CompletedPartialType(fwd_idx, _)
+    | Binding::Phi(JoinStyle::NarrowOf(fwd_idx), _),
+) = original_binding
+```
+
+**Add `PartialTypeWithUpstreamsCompleted`** to the pattern:
+```rust
+while let Some(
+    Binding::Forward(fwd_idx)
+    | Binding::CompletedPartialType(fwd_idx, _)
+    | Binding::PartialTypeWithUpstreamsCompleted(fwd_idx, _)
+    | Binding::Phi(JoinStyle::NarrowOf(fwd_idx), _),
+) = original_binding
+```
+
+### Step 2.4: Update TypeInfo computation in `solve.rs`
+
+**Location**: `lib/alt/solve.rs`, in the TypeInfo computation section
+
+When computing TypeInfo (which preserves facets like dict literal key completions), we need to handle `PartialTypeWithUpstreamsCompleted` specially to preserve the facet information from the wrapped binding.
+
+Add a new match arm to handle `PartialTypeWithUpstreamsCompleted`:
+```rust
+Binding::PartialTypeWithUpstreamsCompleted(raw_idx, first_used_by) => {
+    // Force all of the upstream `Pin`s for which this was the first use.
+    for idx in first_used_by {
+        self.get_idx(*idx);
+    }
+    // Recursively get the TypeInfo from the raw binding to preserve facets
+    self.get_type_info(*raw_idx)
+}
+```
+
+### Step 2.5: Update captured variable detection in `captured_variable.rs`
+
+**Location**: `lib/report/pysa/captured_variable.rs`
+
+The captured variable detection logic traces through bindings to find definitions. Since we now always create `PartialTypeWithUpstreamsCompleted`, we need to update two methods:
+
+1. **In `get_definition_from_usage`**: Add `Binding::CompletedPartialType` and `Binding::PartialTypeWithUpstreamsCompleted` to the match pattern that follows through wrapper bindings.
+
+2. **In `get_definition_from_idx`**: Add `Binding::PartialTypeWithUpstreamsCompleted` to the existing `CompletedPartialType` pattern.
+
 ---
 
 ## Phase 3: Refactor `lookup_name` to Support Deferred First-Use
@@ -798,6 +851,9 @@ The `first_use_of` parameter can be removed since we always create `PartialTypeW
 - [ ] **Phase 1**: Rename `Usage` to `LegacyUsage`, define new `Usage` enum, add `DeferredBoundName` struct, and `deferred_bound_names` field
 - [ ] **Phase 2**: Modify `bind_single_name_assign` to always create `PartialTypeWithUpstreamsCompleted`
 - [ ] **Phase 2**: Verify `Binding::PartialTypeWithUpstreamsCompleted` with empty list works in `solve.rs`
+- [ ] **Phase 2**: Update `get_original_binding` to follow through `PartialTypeWithUpstreamsCompleted`
+- [ ] **Phase 2**: Update TypeInfo computation in `solve.rs` to preserve facets through the wrapper
+- [ ] **Phase 2**: Update captured variable detection in `captured_variable.rs`
 - [ ] **Phase 3**: Rename `lookup_name` to `legacy_lookup_name`, add new `lookup_name` method
 - [ ] **Phase 3**: Add `defer_bound_name` helper method
 - [ ] **Phase 4**: Update `ensure_name_impl` to defer binding creation
