@@ -1,31 +1,15 @@
-# Transactional Var Pinning: Design Notes v2
+# Transactional Var Pinning: Design Notes
 
-This document provides a refined design for eliminating nondeterminism in Pyrefly's type
-inference, incorporating insights from the v1 prototype attempt and subsequent design
-discussions.
+This document provides a design for eliminating nondeterminism in Pyrefly's type inference
+by isolating cycle resolution to individual threads.
 
 **Companion documents:**
-- `v2-worked-example.md` - Detailed trace of A → B → A cycle showing exact call sequence
-- `v2-review-feedback.md` - Corrections and clarifications based on code review
+- `worked-example.md` - Detailed trace of A → B → A cycle showing exact call sequence
+- `review-feedback.md` - Corrections and clarifications based on code review
 
 ---
 
-## Changes from v1
-
-**Major simplifications:**
-- PreliminaryAnswers lives in `Cycle` struct (not top-level ThreadState)
-- No explicit participant tracking needed
-- No eager recomputation iteration needed
-- Store-then-solve pattern for cycle breaking
-- Two-pass protocol with clear invariant: pass N uses pass N-1 result for break_at
-
-**Key insight from v1:** The uncommitted stack already solved cross-module storage by
-putting PreliminaryAnswers in ThreadState. The remaining challenge was recomputation,
-which v2 solves via lazy dependency-driven recomputation instead of eager iteration.
-
----
-
-## Problem Statement (unchanged from v0)
+## Problem Statement
 
 Pyrefly has nondeterminism issues stemming from `Type::Var` values leaking to global storage
 before they're fully resolved. When answers are computed using unresolved `Var` placeholders,
@@ -166,9 +150,9 @@ check for B. B's dependencies still use `get_idx()`, which triggers fresh comput
 
 ### Component 3: No Explicit Participant Tracking
 
-**v1 tried to track:** `Vec<(ModuleInfo, AnyIdx)>` of all bindings in cycle.
+**An alternative approach** would track all bindings in the cycle: `Vec<(ModuleInfo, AnyIdx)>`.
 
-**v2 realizes:** Don't need it! Recomputation happens **implicitly via dependency graph**.
+**This design avoids that:** Recomputation happens **implicitly via dependency graph**.
 
 When we call `K::solve(break_at)` in pass 2:
 - B computes and calls `get_idx(D)`
@@ -219,7 +203,7 @@ match self.stack().current_cycle(current_id) {
 **Key clarification:** The placeholder is created and stored when we reach `BreakHere` (the
 minimal idx in the cycle), not at the first detection point.
 
-**See v2-worked-example.md** for a detailed trace showing exactly when BreakHere triggers.
+**See worked-example.md** for a detailed trace showing exactly when BreakHere triggers.
 
 ### Pass 1: Tentative Computation
 
@@ -371,41 +355,47 @@ result.lower()  # Error: "lower not found on Any"
 
 ---
 
-## How This Eliminates v1 Stuck Points
+## How This Design Avoids Potential Pitfalls
 
-### Stuck Point #1: Transaction Lifecycle Triggers
-**v1 problem:** When to call `transaction.begin()` and `end()`?
-**v2 solution:** No transaction! Cycle creation/destruction is the lifecycle. Begin = push
-Cycle, end = pop Cycle.
+### Pitfall #1: Complex Transaction Lifecycle
+**Risk:** Explicit transaction `begin()` and `end()` calls are error-prone.
+**Solution:** No explicit transaction! Cycle creation/destruction is the lifecycle. Begin = push
+Cycle, end = pop Cycle. The existing `Cycle` struct naturally owns the transaction state.
 
-### Stuck Point #2: Participant Tracking Without Idx
-**v1 problem:** `record_value()` doesn't have `Idx` for tracking participants.
-**v2 solution:** No participant tracking needed. Recomputation is lazy via dependency graph.
+### Pitfall #2: Tracking Cycle Participants
+**Risk:** Tracking which bindings participate in a cycle requires invasive changes to
+`record_value()` and introduces type erasure problems.
+**Solution:** No participant tracking needed. Recomputation is lazy via dependency graph.
+When we call `K::solve(break_at)` in pass 2, all dependencies naturally recompute.
 
-### Stuck Point #3: Cross-Module Recomputation
-**v1 problem:** `AnswersSolver` is per-module, how to recompute cross-module?
-**v2 solution:** `K::solve(break_at)` naturally calls `get_idx()` for dependencies. Each
+### Pitfall #3: Cross-Module Recomputation
+**Risk:** `AnswersSolver` is per-module—how to recompute bindings in other modules?
+**Solution:** `K::solve(break_at)` naturally calls `get_idx()` for dependencies. Each
 dependency recomputes in its own module's context as part of the dependency chain.
+No special cross-module coordinator needed.
 
-### Stuck Point #4: Type Erasure (AnyIdx)
-**v1 problem:** Can't call `K::solve()` on type-erased `AnyIdx`.
-**v2 solution:** No need to iterate type-erased participants. Only call `K::solve()` on
-break_at, which has a known type.
+### Pitfall #4: Type Erasure with AnyIdx
+**Risk:** Can't call `K::solve()` on type-erased `AnyIdx`, which would be needed if we
+iterated over cycle participants.
+**Solution:** No need to iterate type-erased participants. Only call `K::solve()` on
+break_at, which has a known type. The call graph handles the rest.
 
-### Stuck Point #5: Rust Type System Limits
-**v1 problem:** Hard to store heterogeneous `Idx<K>` for iteration.
-**v2 solution:** Don't store them. Only store in `PreliminaryAnswers` which uses the `table!`
-macro for heterogeneous storage, same as global `Answers`.
+### Pitfall #5: Heterogeneous Storage
+**Risk:** Rust's type system makes it hard to store heterogeneous `Idx<K>` for iteration.
+**Solution:** Don't store them for iteration. Only store in `PreliminaryAnswers` which uses
+the `table!` macro for heterogeneous storage, same as global `Answers`. No new patterns needed.
 
-### Stuck Point #6: Error Collector Architecture
-**v1 problem:** Need tentative error suppression.
-**v2 solution:** **Defer to future work.** Ship without error determinism first. Errors
-during pass 1 may be imprecise (reference placeholders), but they're deterministic because
-each thread resolves cycles independently.
+### Pitfall #6: Error Collector Complexity
+**Risk:** Tentative error suppression requires threading "tentative mode" through the entire
+call chain.
+**Solution:** Addressed in Phase 2 with a simpler approach: errors are stored exactly once
+per binding—when the final `Calculation` result is recorded during pass 2. Pass 1 errors
+are simply discarded. See "Implementation Phases" section.
 
-### Stuck Point #7: Cycle Protocol Integration
-**v1 problem:** Existing logic tightly coupled to global `Calculation`.
-**v2 solution:** Minimal changes. Only add:
+### Pitfall #7: Invasive Protocol Changes
+**Risk:** Cycle isolation could require rearchitecting the `Calculation` proposal/record
+protocol.
+**Solution:** Minimal changes. Only add:
   - PreliminaryAnswers to `Cycle` struct
   - Lookup precedence (preliminary before global)
   - Pass 2 solve call after pass 1
@@ -414,7 +404,12 @@ each thread resolves cycles independently.
 
 ## Implementation Plan
 
-### Stage 1: Port PreliminaryAnswers Infrastructure (1 week)
+The stages below map to the three implementation phases:
+- **Stages 1-4**: Phase 1 (Isolation & Computation Order)
+- **Stage 5**: Phase 2 (Error Determinism)
+- **Stage 6**: Phase 3 (Simplification)
+
+### Stage 1: Port PreliminaryAnswers Infrastructure
 
 **Goal:** Get the basic storage working.
 
@@ -495,7 +490,37 @@ each thread resolves cycles independently.
 - Performance acceptable (<20% slowdown in worst case)
 - Telemetry shows nondeterminism is eliminated
 
-**Total timeline:** 7-10 weeks (1.5-2.5 months)
+### Stage 5: Error Determinism (Phase 2)
+
+**Goal:** Store errors exactly once per binding.
+
+**Tasks:**
+1. Modify error collection to buffer errors during pass 1
+2. Discard pass 1 errors after pass 1 completes
+3. Record errors during pass 2 alongside `record_value()`
+4. Verify errors reference T_B1, not T_B0
+
+**Success criteria:**
+- Error messages don't reference placeholder types
+- Each binding's errors stored exactly once
+- No duplicate or conflicting errors
+
+### Stage 6: Simplification (Phase 3)
+
+**Goal:** Simplify placeholder mechanism.
+
+**Tasks:**
+1. Evaluate whether `Variable::Recursive` is still needed
+2. Evaluate whether `Variable::LoopRecursive` is still needed
+3. If possible, replace `Recursive` with simple `Any` placeholder
+4. If possible, replace `LoopRecursive` with loop prior as placeholder
+5. Remove unused complexity from solver
+6. Verify no regression in type quality
+
+**Success criteria:**
+- Simpler code (fewer Variable variants)
+- Same or better type inference
+- Determinism maintained
 
 ---
 
@@ -552,22 +577,67 @@ instability warnings are frequent.
 
 ---
 
-## Error Handling (Deferred)
+## Implementation Phases
 
-**v1 proposed:** Suppress type errors during pass 1, only emit during pass 2.
+The implementation is divided into three phases, each building on the previous:
 
-**v2 defers this:** Error determinism is orthogonal to cycle determinism. Ship without error
-suppression first.
+### Phase 1: Isolation & Computation Order
 
-**Current behavior:** Errors emitted during pass 1 may reference placeholders (T_B0). This
-produces deterministic but potentially confusing errors.
+**Goal:** Get cycle isolation and the two-pass protocol working correctly.
 
-**Future work:** Add error suppression via:
-1. `ErrorCollector.set_tentative(true)` during pass 1
-2. Classify errors as fatal (recursion limit) vs suppressible (type mismatch)
-3. Only emit errors during pass 2 (canonical computation)
+**Focus:**
+- Implement PreliminaryAnswers and per-cycle storage
+- Establish correct computation order (pass 1 with placeholder, pass 2 with T_B1)
+- Ensure answers are only visible to the resolving thread during cycle resolution
+- Keep `Variable::Recursive` as-is for placeholders
 
-**Estimated effort:** 1-2 weeks after core cycle determinism is working.
+**Error handling:** Deferred entirely. Errors may still reference unsolved Vars—that's
+acceptable for this phase. The goal is to prove the isolation and computation order work.
+
+**Success criteria:**
+- Cycle answers are deterministic across runs
+- No Var leakage to other threads during resolution
+- Pass 2 correctly recomputes dependencies
+
+### Phase 2: Error Determinism
+
+**Goal:** Ensure errors are stored exactly once per binding, when the final result is recorded.
+
+**Focus:**
+- Errors from pass 1 (tentative computation) are discarded
+- Errors from pass 2 (canonical computation) are kept and stored with the `Calculation`
+- Each binding's errors are recorded exactly once: when `record_value()` commits to global
+
+**Key insight:** By only storing errors during pass 2, we ensure errors are based on T_B1
+(the committed type), not T_B0 (the placeholder). This makes errors more meaningful.
+
+**Note:** This doesn't guarantee errors are completely Var-free. In edge cases (especially
+with nested cycles referencing outer placeholders), some Vars may still appear. But the
+architecture makes Var-free errors the common case.
+
+**Success criteria:**
+- Errors reference resolved types, not placeholders
+- Each binding's errors stored exactly once
+- Error messages are meaningful and actionable
+
+### Phase 3: Simplification
+
+**Goal:** Simplify the placeholder mechanism now that isolation and error handling are solid.
+
+**Focus:**
+- Revisit `Variable::Recursive` and evaluate if it's still needed
+- Revisit `Variable::LoopRecursive` similarly (use loop prior as placeholder instead)
+- Goal: Replace with simpler placeholders (e.g., `Any` for recursive, loop prior for loops)
+- Remove complexity that was only necessary for the old non-isolated approach
+
+**Rationale:** With phases 1 and 2 working, the placeholder's job is simpler. It just needs
+to break recursion during pass 1. We don't need sophisticated recursive type handling if
+we're always recomputing in pass 2 with the real type.
+
+**Success criteria:**
+- Simpler codebase (fewer Variable variants or simpler handling)
+- No regression in type inference quality
+- Maintained determinism guarantees
 
 ---
 
@@ -593,10 +663,17 @@ Check that the number of solve calls matches expectations.
 `Variable::LoopRecursive` is used for loop Phi nodes. Does it need the same two-pass
 treatment as `Variable::Recursive`?
 
-**Hypothesis:** Loops are intra-binding (not cross-binding), so they don't form cycles in
-the binding graph. `LoopRecursive` might not need changes.
+**Answer:** Yes, `LoopRecursive` variables are only created when we encounter a cycle, so
+they are relevant to this design.
 
-**Needs investigation** in Stage 2.
+**Phases 1 and 2:** Leave `LoopRecursive` handling as-is, same as `Recursive`. The two-pass
+protocol applies equally—we're just isolating and recomputing, regardless of the placeholder
+type.
+
+**Phase 3:** As part of simplification, we'll likely remove `Variable::LoopRecursive` entirely
+and use a simple placeholder. The key difference from `Recursive`: instead of using `Any` as
+the placeholder (T_B0), we use the **loop prior** as the initial guess. This preserves the
+loop's type refinement behavior while eliminating the `LoopRecursive` variant.
 
 ### Q3: Control Flow Divergence in Pass 2
 
@@ -633,20 +710,21 @@ all of C2's bindings see the same value for B (T_B1 from pass 2's context).
 | Pass 2 recomputation mechanism is tricky | Medium | High | Prototype in Stage 2, design carefully |
 | Performance overhead is unacceptable | Low | High | Telemetry in Stage 2, optimize if needed |
 | Nested cycles have edge cases | Medium | Medium | Extensive testing in Stage 3 |
-| Error handling is too invasive | Low | Low | Defer to future work |
+| Error buffering adds complexity (Phase 2) | Medium | Medium | Keep simple: discard pass 1 errors entirely |
+| Variable::Recursive removal breaks edge cases (Phase 3) | Low | Medium | Keep as fallback if simplification fails |
 | Rust borrow checker issues with Cycle ownership | Low | Medium | Refactor if needed |
 
-**Overall risk:** **Medium**. The design is much simpler than v1, but pass 2 mechanics need
+**Overall risk:** **Medium**. The design is straightforward, but pass 2 mechanics need
 careful implementation.
 
-**Estimated probability of success:** **80%** (much higher than v1's 40%).
+**Estimated probability of success:** **80%**.
 
 ---
 
-## Why v2 is Better Than v1
+## Design Strengths
 
 **Simplicity:**
-- No transaction state management
+- No explicit transaction state management
 - No explicit participant tracking
 - No cross-module coordinator
 - No type-preserving closures
@@ -657,7 +735,7 @@ careful implementation.
 - Store-then-solve pattern (clear recursion breaking)
 
 **Performance:**
-- Only 2 full traversals per cycle (not 3)
+- Only 2 full traversals per cycle
 - No overhead when not in cycles (common case)
 
 **Implementation:**
@@ -669,14 +747,12 @@ careful implementation.
 
 ## Conclusion
 
-The v2 design solves all the stuck points from v1 by:
+This design achieves cycle determinism through:
 1. Moving PreliminaryAnswers to per-cycle ownership
 2. Using lazy dependency-driven recomputation
 3. Establishing the pass-N-uses-pass-N-1 invariant
 
 **Next step:** Implement Stage 1 (port infrastructure).
-
-**Estimated timeline:** 7-10 weeks for production-ready implementation.
 
 **Expected outcome:** Eliminates nondeterminism in cycle resolution, making Pyrefly's type
 inference predictable and deterministic.
