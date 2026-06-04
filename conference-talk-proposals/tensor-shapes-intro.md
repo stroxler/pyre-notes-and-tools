@@ -1,3 +1,7 @@
+
+Proposal is at https://github.com/stroxler/pyre-notes-and-tools/blob/main/conference-talk-proposals/tensor-shapes-intro.md, this copy made for collaborative commenting / editing
+
+
 # Static Tensor Shape Checking for PyTorch with Pyrefly
 
 
@@ -6,27 +10,28 @@
 This talk is for PyTorch developers who:
 - Have been frustrated by shape errors that only surface at runtime
 - Are curious about how static analysis can improve the model development experience
-- Want to understand how tensor shape checking works and try it on their own models
+- Want to understand how Pyrefly tensor shape checking works and try it on their own models
 
 Familiarity with PyTorch and basic Python type hints is helpful but not required.
 
 
 ## Abstract (~150 words)
 
-Shape errors are the most common source of bugs in PyTorch models — an
+Shape errors are the most common source of bugs in a PyTorch model. An
 empirical study found that tensor shape faults account for 45% of failures in
-deep learning programs [1] — yet they remain invisible until runtime. This talk
-introduces tensor shape types in Pyrefly — a practical static checker that
-tracks tensor shapes through entire models, showing you the shape of every
-intermediate tensor as an inline type hint and catching mismatches before you
-run your code.
+deep learning programs [1]. Normally the problems cannot be found until runtime.
+
+This talk introduces tensor shape types in Pyrefly, Meta’s new python type checker.
+This static analysis, inspired by the shape tracking in the pytorch compiler, can show
+shapes of tensors in a model as inline type hints and catch shape mismatches
+immediately.
 
 Under the hood, the system extends Python's type system with symbolic integer
 arithmetic (e.g., `Tensor[B, D // NHead, T]`), a shape transform DSL for
 specifying how each PyTorch operator transforms shapes, and the `Dim[X]` type
 that bridges runtime values to type-level symbols — no constraint solver needed.
 
-We'll walk through results from 28 real-world models spanning LLMs, vision,
+We'll walk through results from real-world models spanning LLMs, vision,
 audio, recommenders, and RL, and show how AI assistants can automatically port
 existing models to use shape annotations with ~30 annotations per model.
 
@@ -35,8 +40,7 @@ existing models to use shape annotations with ~30 annotations per model.
 
 - How to read and write tensor shape annotations in Pyrefly
 - What kinds of shape errors static checking can catch, and where it hits limits
-- How the shape transform DSL works, and its connection to torch.compile's
-  symbolic shapes
+- How shape transforms are defined, and the connection to torch.compile symbolic shapes
 - How to try shape checking on your own models, including AI-assisted porting
 
 
@@ -59,12 +63,22 @@ avoiding accidental recompilation in production serving.
 
 **The community is already reaching for solutions.** jaxtyping has over 5
 million monthly PyPI downloads for runtime shape checking. einops (9.5k GitHub
-stars, ICLR 2022) was built specifically to address shape readability — as its
+stars, ICLR 2022) was built specifically to address shape readability: as its
 author puts it, shape "comments don't prevent mistakes, [are] not tested, and
 without code review tend to be outdated." PyTorch's own named tensors feature,
 motivated by similar concerns, has remained experimental for over 5 years.
 Static shape types build on this momentum with a complementary approach:
 catching errors before execution rather than at runtime.
+
+**Static checks solve problems existing tools do not** While jaxtyping can
+undeniably be useful, actually  getting feedback requires a runtime type
+checker, which simply checks actual shapes on the data given. This runtime
+check has a few gaps compared to static analysis:
+- It requires running the code, versus near-instant feedback from type checks
+- It only looks at sample dimensions, which can hide bugs that only surface
+  in production if the sample data happens to have some dimensions that are
+  always equal.
+- It can interfere with graph analysis on `torch.compile`
 
 
 ## Outline
@@ -81,10 +95,16 @@ problem. Shape mismatches trigger recompilations, which can cause performance
 and memory problems in production.
 
 Today, ML developers often use shapes in comments, develop in a notebook using
-test data, or use print debugging.
+test data, or use print debugging. What if you could statically understand
+shapes for quick, automatic feedback that you can verify with a type checker
+and see directly in your editor?
 
-What if you could statically understand shapes for quick, automatic feedback
-that you can verify with a type checker and see directly in your editor?
+Related tools like jaxtyping have been useful but only check at runtime, which
+limits the expressiveness and gives a slower feedback loop. Moreover, they can
+interfere with torch.compile. Checking statically avoids this - there’s no
+runtime cost, the symbolic dimensions can express intent better (especially
+when dimensions might happen to be equal on simple examples but not always in
+production) and the feedback after an edit is nearly-instant.
 
 ### Demo (7-10 min)
 
@@ -117,7 +137,7 @@ subset of ordinary Python code.
 There is also special support for `nn.Module` which allows modeling
 important modules like `nn.Linear[In, Out]` and `nn.Conv2d[InC, OutC, K, S, P, D]`.
 
-### Evaluation: 28 Real Models (5-7 min)
+### Evaluation against Real Models (5-7 min)
 
 To validate the approach and build out a minimal viable set of stubs for
 PyTorch, we annotated 28 real open-source models (21 from TorchBench and 7
@@ -271,4 +291,6 @@ prevents a `(3,1)` array from being passed where a `(3,)` is expected.
 The `#` modifier in jaxtyping makes broadcasting opt-in per dimension,
 forcing developers to declare intent explicitly.
 https://geeksilas.bearblog.dev/jaxtyping-enhancing-type-safety-and-catching-silent-bugs-in-pytorch-numpy-and-beyond-with-einops/
+
+
 
